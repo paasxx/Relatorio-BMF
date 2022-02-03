@@ -1,0 +1,5061 @@
+#!/usr/bin/env python
+# coding: utf-8
+
+# In[1]:
+
+
+import requests 
+
+import pandas as pd
+
+import re
+
+import openpyxl
+
+import numpy as np
+
+import matplotlib.pyplot as plt
+
+import matplotlib as mpl
+
+import matplotlib.colors as mcolors
+
+import seaborn as sns
+
+import win32com
+
+import win32com.client as win32
+
+import os
+
+from matplotlib.ticker import (MultipleLocator,
+                               FormatStrFormatter,
+                               AutoMinorLocator)
+
+from matplotlib.pyplot import figure
+
+from PIL import ImageGrab
+
+from urllib.request import urlopen
+
+from pretty_html_table import build_table
+
+from openpyxl import Workbook ,load_workbook
+
+from openpyxl.styles import PatternFill, Border, Side, Alignment, Protection, Font, Fill,NamedStyle, numbers
+
+from openpyxl.styles.colors import Color
+
+from openpyxl.formatting.rule import CellIsRule
+
+from openpyxl.utils import get_column_letter
+
+from openpyxl.chart import LineChart,Reference
+
+from datetime import date, timedelta, datetime
+
+from IPython.display import display
+
+from urllib.parse import urlencode
+
+from bs4 import BeautifulSoup
+
+
+# In[2]:
+
+
+#excel_data_df = pd.read_excel(r'C:\Users\SILVEIPE\OneDrive - Banco BTG Pactual S.A\Desktop\NewBMF.xlsx', sheet_name = 'Em_Aberto')
+
+#Le o excel pra gravar dados diários
+
+#print(excel_data_df['PRODUTO'].tolist())
+
+#excel_data_df = pandas.read_excel(r'C:\Users\SILVEIPE\OneDrive - Banco BTG Pactual S.A\Desktop\NewBMF.xlsx', sheet_name='Cars', usecols=['Car Name', 'Car Price'])
+#print(excel_data_df)
+
+
+# In[3]:
+
+
+url = "https://www2.bmf.com.br/pages/portal/bmfbovespa/lumis/lum-posicoes-em-aberto-futuro-ptBR.asp"
+
+
+# In[4]:
+
+
+url_2 = "https://www2.bmf.com.br/pages/portal/bmfbovespa/lumis/lum-posicoes-em-aberto-opcoes-ptBR.asp"
+
+
+# In[5]:
+
+
+url_3 = "https://www2.bmf.com.br/pages/portal/bmfbovespa/lumis/lum-tipo-de-participante-ptBR.asp"
+
+
+# In[6]:
+
+
+feriados = pd.read_csv(r"U:\\Giacomo\DataBase\Feriados.csv")
+
+
+# In[7]:
+
+
+
+data = feriados['data'].tolist()
+
+dataf=[]
+
+for i in data:
+    
+    dataf.append(i.strip()[-4:] + "-" + ("0"+ i.strip()[0] if i.find("/")==1 else i.strip()[0:i.find("/")]) + "-" + ("0" + re.search("/(.*?)/", i.strip()).group(1) if len(re.search("/(.*?)/", i.strip()).group(1))==1 else re.search("/(.*?)/", i.strip()).group(1)))  
+  
+
+
+ #for i in dataf:
+
+ #     print(i)
+    
+    # Vetor de feriados formatado
+
+
+# In[ ]:
+
+
+
+
+
+# In[8]:
+
+
+d=29
+
+today = datetime.today()-timedelta(days = d)
+
+day_aux = datetime.today().strftime("%d-%m-%Y")
+
+
+
+if datetime.today().weekday()==(5 or 6):    ########## Testa se o dia para rodar o relatório D + 0 é dia útil
+
+    
+    exit()  # Dont Run the code
+    
+    
+else:
+    
+    for i in dataf:         ############# Testa se hoje é feriado ou não
+            
+        if i[8:]+"-"+i[5:7]+"-"+i[0:4]==day_aux:
+        
+            exit()    # Dont Run the code, its a holliday
+    
+
+    
+
+
+
+
+# In[9]:
+
+
+#print((datetime.today()-timedelta(days = 3)))
+
+
+# In[10]:
+
+
+day  = datetime.today()-timedelta(days = 1)
+d0 = datetime.today()-timedelta(days = 3)
+d1 = datetime.today()-timedelta(days = 4)
+d2 = datetime.today()-timedelta(days = 5)
+d3 = datetime.today()-timedelta(days = 6)
+
+
+
+if day.weekday()==6:
+    
+    day = datetime.today()-timedelta(days = 3)
+    
+    for i in dataf:         ############# Testa se hoje é feriado ou não
+            
+        if (i[8:]+"-"+i[5:7]+"-"+i[0:4])==day.strftime("%d-%m-%Y"):
+    
+            day=d1
+        
+            if (i[8:]+"-"+i[5:7]+"-"+i[0:4])==day.strftime("%d-%m-%Y"):
+                
+                day=d2
+        
+                if (i[8:]+"-"+i[5:7]+"-"+i[0:4])==day.strftime("%d-%m-%Y"):
+            
+                    day=d3
+            
+        
+            
+else:
+    
+    if day.weekday()==5:
+    
+        day = datetime.today()-timedelta(days = 2)
+    
+        for i in dataf:         ############# Testa se hoje é feriado ou não
+            
+            if (i[8:]+"-"+i[5:7]+"-"+i[0:4])==day.strftime("%d-%m-%Y"):
+    
+                day=d0
+        
+                if (i[8:]+"-"+i[5:7]+"-"+i[0:4])==day.strftime("%d-%m-%Y"):
+                
+                    day=d1
+        
+                    if (i[8:]+"-"+i[5:7]+"-"+i[0:4])==day.strftime("%d-%m-%Y"):
+            
+                        day=d2
+        
+
+
+
+day=day.strftime("%d-%m-%Y")
+
+
+
+# print(day)
+
+
+# In[11]:
+
+
+###################################### Inserção Manual das datas para rodar retroativo caso necessário  ###################
+
+
+#day = "07-01-2022"    ############ Dia q se quer capturar os dados  formato dd-MM-YYYY #######
+
+day_2 = day[3:6]+day[:3]+day[-4:]  ############ Dia q se quer capturar os dados  formato MM-dd-YYYY #######
+
+#day_aux = "10-01-2022"  ############ Dia útil após dia de captura dos dados dd-MM-YYYY ###########
+
+print(day_aux)
+
+#######################################################################################################################
+
+
+# In[12]:
+
+
+#Vetor de datas de dias úteis para cálculo de histórico
+
+Datas = pd.date_range(end = day_2, periods = 25).to_pydatetime().tolist()
+
+
+
+for date in Datas:
+    
+    #print(date.weekday())
+    
+    if (date.weekday() == 5):
+        
+        
+        Datas.pop(Datas.index(date))
+        
+        
+        
+for date2 in Datas:
+    
+    if (date2.weekday() == 6):
+            
+        Datas.pop(Datas.index(date2))
+            
+        
+    
+        
+        
+
+#for i in Datas:
+        
+    #print(i.strftime("%Y-%m-%d"))
+    
+    
+#Essa parte retira os finais de semana do vetor de datas
+   
+    
+for i in Datas:
+        
+    for j in dataf:
+            
+        if i.strftime("%Y-%m-%d")==j:
+                
+            Datas.pop(Datas.index(i))
+            #print(i)
+            
+    
+# for k in Datas:   
+#     print(k.strftime("%Y-%m-%d"))
+    
+    
+#Essa parte retira os feriados (vetor dataf) do  vetor de datas (Datas)
+
+
+# In[13]:
+
+
+
+pload = {"dData1": day }
+
+html_content = requests.get(url, data=pload, verify=True)
+
+# O código acima cria um vetor de datas que queremos ler retroativo no servidor da bolsa, e a 
+# função post manda a data que queremos ler para o servidor retornar a página na data requerida.
+
+#print(html_content.headers)
+
+#print(html_content.text)
+
+
+# In[14]:
+
+
+pload_2 = {"dData1": day}
+
+html_content_2 = requests.get(url_2, data=pload_2, verify=True)
+
+
+# In[15]:
+
+
+pload_3 = {"dData1": day}
+
+html_content_3 = requests.get(url_3, data=pload_3, verify=True)
+
+
+# In[16]:
+
+
+soup = BeautifulSoup(html_content.text, "lxml")
+
+soup_2 = BeautifulSoup(html_content_2.text, "lxml")
+
+soup_3 = BeautifulSoup(html_content_3.text, "html5lib")
+
+
+# In[17]:
+
+
+#print(soup_3.prettify(formatter=None))
+
+
+# In[18]:
+
+
+tables = soup.find_all('table')
+
+tables_2 = soup_2.find_all('table')
+
+tables_3 = soup_3.find_all('table')
+
+
+# In[19]:
+
+
+#print(tables_3[0])
+
+
+# In[20]:
+
+
+
+tb = tables[0] # Essa é a tabela que precisamos dentro do HTML, a de número 0, a que contém os dados dos contratos futuros
+
+tb_2 = tables_2[3] # Essa é a tabela que precisamos dentro do HTML, a de número 3, a que contém os dados das opções
+
+tb_3 = tables_3  #Essa é a tabela que precisamos dentro do HTML, a de número 0, a que contém os dados das opções
+
+
+#print(tables_3)
+
+
+# In[21]:
+
+
+
+tr = tb.find_all('tr')
+
+tr_2 = tb_2.find_all('tr')
+
+#tr_3 = tb_3.find_all('tr')
+
+# find_all é a função busca todos os dados da tabela dentros das linhas, table rows <tr>
+
+
+
+# Acima podemos ver que tr é um vetor e td também, que pode ter seus elementos acessados na expressão acima
+
+
+# In[22]:
+
+
+tb_data = soup.find_all('p')
+
+
+td = tb_data[0].text
+
+Data = td[16:26]
+
+Data_B3_fut = Data[6:10] + "-" + Data[3:5] + "-" + Data[0:2]
+
+#print(Data_B3_fut)
+
+
+#O código acima encontra e nos mostra a data de atualização da página de futuros no 
+
+
+# In[23]:
+
+
+tb_2_data = soup_2.find_all('p')
+
+td_2 = tb_2_data[0].text
+
+
+Data_2 = td_2[16:26]
+
+Data_B3_opc = Data_2[6:13] + "-" + Data_2[3:5] + "-" + Data_2[0:2]
+
+#print(Data_B3_opc)
+
+
+#O código acima encontra e nos mostra a data de atualização da página de opções.
+
+
+# In[24]:
+
+
+tables_3_data = soup_3.find_all('p')
+
+
+td_3 = tables_3_data[0].text
+
+Data_3 = td_3[40:50]
+
+Data_B3_inv = Data_3[6:13] + "-" + Data_3[3:5] + "-" + Data_3[0:2]
+
+#print(Data_B3_inv)
+
+
+#O código acima encontra e nos mostra a data de atualização da página de opções.
+
+
+# In[25]:
+
+
+Data_B3 = Data_B3_opc   # Aqui escolhemos qual data utilizar a dos futuros ou das opções
+
+
+# In[26]:
+
+
+df = pd.DataFrame(columns=["Data","Mercadoria", "Vencimento", "Em Aberto", "Var. Qtd."])
+
+aux = ""
+
+
+
+for i in tr:
+
+    for j in range(len(i.find_all('td'))):
+
+        if (len(i.find_all('td'))==1):
+
+            df.loc[tr.index(i)]=[Data_B3,i.find_all('td')[0].text.strip(),"","",""]
+
+            aux = i.find_all('td')[0].text.strip()
+
+
+
+        else:
+            
+            if (i.find_all('td')[0].text.strip()=="Total"):
+
+
+
+                df.loc[tr.index(i)]=[Data_B3,"Total",i.find_all('td')[1].text.strip(),i.find_all('td')[2].text.strip(),i.find_all('td')[3].text.strip()]
+
+            else:
+
+
+                df.loc[tr.index(i)]=[Data_B3,aux,i.find_all('td')[1].text.strip(),i.find_all('td')[2].text.strip(),i.find_all('td')[3].text.strip()]
+
+
+df=df.reset_index()
+
+df=df.drop(['index'],axis=1)
+
+
+#display(df)         
+
+
+
+# In[27]:
+
+
+df_2 = pd.DataFrame(columns=["Data","Mercadoria", "Vencimento", "Em Aberto", "Var. Qtd."])
+
+
+
+
+for i in tr_2:
+
+    for j in range(len(i.find_all('td'))):
+       
+
+        if (len(i.find_all('td'))==1):
+            
+
+            df_2.loc[tr_2.index(i)]=[Data_B3,"CPM","","",""]
+
+
+
+        else:
+            
+            if (i.find_all('td')[0].text.strip()=="Total"):
+
+
+
+                df_2.loc[tr_2.index(i)]=[Data_B3,"Total","",i.find_all('td')[1].text.strip(),i.find_all('td')[2].text.strip()]
+
+            else:
+                
+                if (len(i.find_all('td'))==2):
+                    
+                    pass
+                    
+                else:
+
+
+                    df_2.loc[tr_2.index(i)]=[Data_B3,"CPM",i.find_all('td')[0].text.strip(),i.find_all('td')[1].text.strip(),i.find_all('td')[2].text.strip()]
+
+
+                    
+df_2=df_2.reset_index()
+
+df_2=df_2.drop(['index'],axis=1)
+                    
+                    
+#display(df_2)         
+
+
+# In[28]:
+
+
+df_t = pd.DataFrame(columns=["Tipo_Invest","Mercadoria", "Compra", "Venda", "Data"])
+
+
+aux_2 = ""
+aux=0
+
+for i in tb_3:
+    
+
+    for j in (i.find_all('tr')):
+        
+        
+       
+        
+        aux_2 = i.find('caption').text.strip()
+       
+        k = j.find_all('td')
+                
+        if (len(j.find_all('td'))==5):
+            
+            #if(k[0]=="Total Geral"):
+                
+                #k[0]="Total"
+                    
+
+                #df_t.loc[aux]=[k[0].text.strip(),aux_2,k[1].text.strip(),k[3].text.strip(),Data_B3]
+        
+                #aux = aux +1
+            
+            
+            df_t.loc[aux]=[k[0].text.strip(),aux_2,k[1].text.strip(),k[3].text.strip(),Data_B3]
+        
+            aux = aux +1
+            
+        else:
+                
+            #df_t.loc[aux]=[k[0].text.strip(),aux_2,k[1].text.strip(),k[3].text.strip(),Data_B3]
+                
+            aux = aux +1
+                
+
+   
+    
+#print(aux)
+                    
+
+                    
+df_t=df_t.reset_index()
+
+df_t=df_t.drop(['index'],axis=1)
+
+for i in range(len(df_t["Compra"])):
+    
+    df_t.loc[i].at["Compra"] = df_t.loc[i].at["Compra"].replace(".","")
+    df_t.loc[i].at["Venda"] = df_t.loc[i].at["Venda"].replace(".","")
+    
+df_t["Compra"] = df_t["Compra"].astype(int)
+df_t["Venda"] = df_t["Venda"].astype(int)
+
+                    
+#display(df_t)
+
+#print(df_t)
+
+
+# In[29]:
+
+
+df_3 = pd.concat([df.drop(0), df_2.drop(0).drop(1)], ignore_index=True)
+
+# display(df_3)
+
+
+# In[30]:
+
+
+wb = load_workbook(r"U:\Giacomo\DataBase\NewBMF.xlsx")
+sheets = wb.sheetnames
+Em_Aberto = wb[sheets[0]]
+Tipo_Invest = wb[sheets[1]]
+
+max = Em_Aberto.max_row
+#print(max)
+
+
+j=max  # variavel auxiliar
+
+for i in range(0, len(df_3)-2):
+    
+    for name in ('DI1','DOL', 'IND', 'OC1', 'DAP', 'WDO', 'WIN', 'CPM'):
+        
+        if (name in df_3.loc[i+1].at["Mercadoria"] and df_3.loc[i+1].at["Em Aberto"] !="" ):
+            
+            j= j+1
+         
+    
+            Em_Aberto .cell(row = j, column = 2).value = df_3.loc[i+1].at["Data"] #This will change the cell(max+1,1) to 4
+            Em_Aberto .cell(row = j, column = 3).value = df_3.loc[i+1].at["Vencimento"] #This will change the cell(max+1,1) to 4
+            Em_Aberto .cell(row = j, column = 4).value = df_3.loc[i+1].at["Var. Qtd."]
+            Em_Aberto .cell(row = j, column = 5).value = df_3.loc[i+1].at["Em Aberto"]
+            Em_Aberto .cell(row = j, column = 6).value = df_3.loc[i+1].at["Mercadoria"]
+
+    # Essa parte acima Abre a planilha escreve os dados de contratos em aberto na aba respectiva 
+    
+    
+    
+
+
+max_2 = Tipo_Invest.max_row
+
+
+
+k=max_2  # variavel auxiliar
+p=""   # variavel auxiliar
+
+for i in range(0, len(df_t)-1):
+    
+    
+            name = df_t.loc[i+1].at["Mercadoria"]
+    
+            
+            if name=="MERCADO FUTURO DE CUPOM CAMBIAL - DDI":
+                
+                p="DDI"
+                k= k+1
+                
+            elif name=="MERCADO FUTURO DE DÓLAR":
+            
+                p="DOL"
+                k= k+1
+                
+            elif name=="MERCADO FUTURO DE TAXA DE JURO":
+                
+                p="DI1"
+                k= k+1
+                
+            elif name=="MERCADO FUTURO DE IBOVESPA":
+                
+                p="IBOV"
+                k= k+1
+                
+            elif name=="MERCADO SWAP CAMBIAL COM AJUSTE (SCS)":
+                
+                p="SCS"
+                k= k+1
+                
+            elif name=="MERCADO DE OPÇÕES DE COMPRA DE ÍNDICE IDI":
+            
+                p="IDIC"
+                k= k+1
+                
+            elif name=="MERCADO DE OPÇÕES DE VENDA DE ÍNDICE IDI":
+                
+                p="IDIV"
+                k= k+1
+                
+            elif name=="MERCADO DE OPÇÕES DE COMPRA DE DÓLAR COMERCIAL":
+                
+                p="DOLC"
+                k= k+1
+                
+            elif name=="MERCADO DE OPÇÕES DE VENDA DE DÓLAR COMERCIAL":
+                
+                p="DOLV"
+                k= k+1
+                
+            elif name=="MERCADO FUTURO DE CUPOM DE DI x IPCA":
+            
+                p="DAP"
+                k= k+1
+                
+            elif name=="Dólar Mini - WDO":
+                
+                p="WDO"
+                k= k+1
+                
+            elif name=="MERCADO FUTURO FRACIONÁRIO DE IBOVESPA MINI":
+                
+                p="WIN"
+                k= k+1
+                
+            elif   "MERCADO DE OPÇÕES DE COMPRA DE CPM" in name:
+                
+                p="CPM"
+                k= k+1
+            
+            
+            else: 
+                continue
+            
+            Tipo_Invest .cell(row = k, column = 2).value = df_t.loc[i+1].at["Tipo_Invest"] #This will change the cell(max+1,1) to 4
+            Tipo_Invest .cell(row = k, column = 3).value = p                               #This will change the cell(max+1,1) to 4
+            Tipo_Invest .cell(row = k, column = 4).value = df_t.loc[i+1].at["Compra"]
+            Tipo_Invest .cell(row = k, column = 5).value = df_t.loc[i+1].at["Venda"]
+            Tipo_Invest .cell(row = k, column = 6).value = df_t.loc[i+1].at["Data"]
+    
+    
+    
+wb.save(r"U:\Giacomo\DataBase\NewBMF.xlsx") 
+
+
+# In[31]:
+
+
+# Criação do vetor de datas para  relatório histórico
+
+last = Datas.index(Datas[-1])
+
+Datas_rel = [] 
+
+for i in range (0,15):
+
+    
+    Datas_rel.append(Datas[last-i].strftime("%Y-%m-%d"))
+    
+
+    
+#for j in Datas_rel:
+    
+    
+    #print(j)
+
+
+# In[32]:
+
+
+df_emaberto = pd.DataFrame(columns=["Data","Vencimento", "Var. Qtd.", "Em Aberto", "Mercadoria"])
+
+
+# In[33]:
+
+
+pd.set_option('display.max_rows', None)
+
+
+# In[ ]:
+
+
+
+
+
+# In[34]:
+
+
+wb_emaberto = load_workbook(r"U:\Giacomo\DataBase\NewBMF.xlsx")
+sheets = wb_emaberto.sheetnames
+s1= wb_emaberto[sheets[0]]
+s2 = wb_emaberto[sheets[1]]
+
+max = s1.max_row
+#print(max)
+
+
+j=max  # variavel auxiliar pra planilha de base dados
+m=0    #variavel auxiliar para as linha do dataframe
+
+for k in Datas_rel:
+    
+    while k==s1.cell(row = j, column = 2).value:
+
+
+            
+
+            df_emaberto.at[m, "Data"] =  s1 .cell(row = j, column = 2).value
+            df_emaberto.at[m, "Vencimento"] =  s1 .cell(row = j, column = 3).value
+            df_emaberto.at[m, "Var. Qtd."] = s1 .cell(row = j, column = 4).value
+            df_emaberto.at[m, "Em Aberto"] = s1 .cell(row = j, column = 5).value
+            df_emaberto.at[m, "Mercadoria"] = s1 .cell(row = j, column = 6).value
+            
+            j = j-1
+            m = m+1
+            
+#Esse loop lê na plan em excel quantos dias quer se pegar pra fazer o relatorio, de acordo com o vetor Datas_rel.
+
+
+for i in range(len(df_emaberto["Em Aberto"])):
+    
+    df_emaberto.loc[i].at["Em Aberto"] = df_emaberto.loc[i].at["Em Aberto"].replace(".","")
+    
+df_emaberto["Em Aberto"] = df_emaberto["Em Aberto"].astype(int)
+    
+    
+# Trecho acima retira os pontos dos numeros para formatar
+
+
+# In[35]:
+
+
+df_t_2 = pd.DataFrame(columns=["Tipo_Invest","Mercadoria", "Compra", "Venda", "Data"]) ## Dataframe auxiliar para tipo de investidor nos ultimos 15 dias, ao contrario do df_t que pega so o D-1
+
+sheets = wb_emaberto.sheetnames
+s1= wb_emaberto[sheets[0]]
+s2 = wb_emaberto[sheets[1]]
+
+max = s2.max_row
+
+
+
+j=max  # variavel auxiliar pra planilha de base dados
+m=0    #variavel auxiliar para as linha do dataframe
+
+for k in Datas_rel:
+    
+    while k==s2.cell(row = j, column = 6).value:
+
+
+            
+
+            df_t_2.at[m, "Tipo_Invest"] =  s2 .cell(row = j, column = 2).value
+            df_t_2.at[m, "Mercadoria"] =  s2 .cell(row = j, column = 3).value
+            df_t_2.at[m, "Compra"] = s2 .cell(row = j, column = 4).value
+            df_t_2.at[m, "Venda"] = s2 .cell(row = j, column = 5).value
+            df_t_2.at[m, "Data"] = s2 .cell(row = j, column = 6).value
+            
+            j = j-1
+            m = m+1
+            
+#Esse loop lê na plan em excel quantos dias quer se pegar pra fazer o relatorio, de acordo com o vetor Datas_rel.
+#display(df_t_2)
+
+df_t_2["Compra"] = df_t_2["Compra"].astype(str)
+df_t_2["Venda"] = df_t_2["Venda"].astype(str)
+
+
+for i in range(len(df_t_2["Compra"])):
+    
+    df_t_2.loc[i].at["Compra"] = df_t_2.loc[i].at["Compra"].replace(".","")
+    df_t_2.loc[i].at["Venda"] = df_t_2.loc[i].at["Venda"].replace(".","")
+
+    
+
+df_t_2["Compra"] = df_t_2["Compra"].astype(int)
+df_t_2["Venda"] = df_t_2["Venda"].astype(int)
+    
+    
+# Trecho acima retira os pontos dos numeros para formatar
+
+#display(df_t_2)
+
+
+# In[36]:
+
+
+# display(df_t_2)
+
+
+# In[37]:
+
+
+#################################### Dados para gráfico DOL + WDO + DDI + SWAP ##########################################
+
+forei_dol = []
+forei_wdo = []
+forei_ddi = []
+forei_swp = []
+
+bank_dol = []
+bank_wdo = []
+bank_ddi = []
+bank_swp = []
+
+invinst_dol = []
+invinst_wdo = []
+invinst_ddi = []
+invinst_swp = []
+
+invnf_dol = []
+invnf_wdo = []
+invnf_ddi = []
+invnf_swp = []
+
+
+
+Datas_plot = []
+
+
+
+
+for i in range(0,len(df_t_2)):
+    
+    
+    if (df_t_2.at[i,"Tipo_Invest"] == "Investidores Não Residentes" and df_t_2.at[i,"Mercadoria"] == "DOL"):
+    
+    
+        forei_dol.append(df_t_2.at[i,"Compra"] - df_t_2.at[i,"Venda"])
+        
+    if (df_t_2.at[i,"Tipo_Invest"] == "Investidores Não Residentes" and df_t_2.at[i,"Mercadoria"] == "WDO"):
+    
+    
+        forei_wdo.append(df_t_2.at[i,"Compra"] - df_t_2.at[i,"Venda"])
+        
+    if (df_t_2.at[i,"Tipo_Invest"] == "Investidores Não Residentes" and df_t_2.at[i,"Mercadoria"] == "DDI"):
+    
+    
+        forei_ddi.append(df_t_2.at[i,"Compra"] - df_t_2.at[i,"Venda"])
+        
+        
+    if (df_t_2.at[i,"Tipo_Invest"] == "Investidores Não Residentes" and df_t_2.at[i,"Mercadoria"] == "SCS"):
+    
+    
+        forei_swp.append(df_t_2.at[i,"Compra"] - df_t_2.at[i,"Venda"])
+        
+        Datas_plot.append(df_t_2.at[i,"Data"])   ######## Array auxiliar pra capturar as datas
+        
+        
+        
+    if (df_t_2.at[i,"Tipo_Invest"] == "Bancos" and df_t_2.at[i,"Mercadoria"] == "DOL"):
+    
+    
+        bank_dol.append(df_t_2.at[i,"Compra"] - df_t_2.at[i,"Venda"])
+        
+    if (df_t_2.at[i,"Tipo_Invest"] == "Bancos" and df_t_2.at[i,"Mercadoria"] == "WDO"):
+    
+    
+        bank_wdo.append(df_t_2.at[i,"Compra"] - df_t_2.at[i,"Venda"])
+        
+    if (df_t_2.at[i,"Tipo_Invest"] == "Bancos" and df_t_2.at[i,"Mercadoria"] == "DDI"):
+    
+    
+        bank_ddi.append(df_t_2.at[i,"Compra"] - df_t_2.at[i,"Venda"])
+        
+        
+    if (df_t_2.at[i,"Tipo_Invest"] == "Bancos" and df_t_2.at[i,"Mercadoria"] == "SCS"):
+    
+    
+        bank_swp.append(df_t_2.at[i,"Compra"] - df_t_2.at[i,"Venda"])
+        
+        
+        
+        
+    
+    if (df_t_2.at[i,"Tipo_Invest"] == "Investidor Institucional" and df_t_2.at[i,"Mercadoria"] == "DOL"):
+    
+    
+        invinst_dol.append(df_t_2.at[i,"Compra"] - df_t_2.at[i,"Venda"])
+        
+    if (df_t_2.at[i,"Tipo_Invest"] == "Investidor Institucional" and df_t_2.at[i,"Mercadoria"] == "WDO"):
+    
+    
+        invinst_wdo.append(df_t_2.at[i,"Compra"] - df_t_2.at[i,"Venda"])
+        
+    if (df_t_2.at[i,"Tipo_Invest"] == "Investidor Institucional" and df_t_2.at[i,"Mercadoria"] == "DDI"):
+    
+    
+        invinst_ddi.append(df_t_2.at[i,"Compra"] - df_t_2.at[i,"Venda"])
+        
+        
+    if (df_t_2.at[i,"Tipo_Invest"] == "Investidor Institucional" and df_t_2.at[i,"Mercadoria"] == "SCS"):
+    
+    
+        invinst_swp.append(df_t_2.at[i,"Compra"] - df_t_2.at[i,"Venda"])
+        
+        
+        
+        
+        
+    if (df_t_2.at[i,"Tipo_Invest"] == "Pessoa Jurídica Não Financeira" and df_t_2.at[i,"Mercadoria"] == "DOL"):
+    
+    
+        invnf_dol.append(df_t_2.at[i,"Compra"] - df_t_2.at[i,"Venda"])
+        
+    if (df_t_2.at[i,"Tipo_Invest"] == "Pessoa Jurídica Não Financeira" and df_t_2.at[i,"Mercadoria"] == "WDO"):
+    
+    
+        invnf_wdo.append(df_t_2.at[i,"Compra"] - df_t_2.at[i,"Venda"])
+        
+    if (df_t_2.at[i,"Tipo_Invest"] == "Pessoa Jurídica Não Financeira" and df_t_2.at[i,"Mercadoria"] == "DDI"):
+    
+    
+        invnf_ddi.append(df_t_2.at[i,"Compra"] - df_t_2.at[i,"Venda"])
+        
+        
+    if (df_t_2.at[i,"Tipo_Invest"] == "Pessoa Jurídica Não Financeira" and df_t_2.at[i,"Mercadoria"] == "SCS"):
+    
+    
+        invnf_swp.append(df_t_2.at[i,"Compra"] - df_t_2.at[i,"Venda"])
+      
+        
+        
+        
+forei = []
+bank = []
+invinst = []
+invnf = []
+
+       
+forei_c = []          #### c de contratos
+bank_c = []
+invinst_c = []
+invnf_c = []
+        
+        
+        
+for i in range(len(Datas_plot)):
+    
+    forei.append(int(round((forei_dol[i]+int(round(forei_wdo[i]/5))+forei_ddi[i]-forei_swp[i])/20)))
+    bank.append(int(round((bank_dol[i]+bank_wdo[i]/5+bank_ddi[i]-bank_swp[i])/20)))
+    invinst.append(int(round((invinst_dol[i]+invinst_wdo[i]/5+invinst_ddi[i]-invinst_swp[i])/20)))
+    invnf.append(int(round((invnf_dol[i]+invnf_wdo[i]/5+invnf_ddi[i])/20)))
+    
+    forei_c.append(int(round(forei_dol[i]+int(round(forei_wdo[i]/5))+forei_ddi[i]-forei_swp[i])))
+    bank_c.append(int(round(bank_dol[i]+bank_wdo[i]/5+bank_ddi[i]-bank_swp[i])))
+    invinst_c.append(int(round(invinst_dol[i]+invinst_wdo[i]/5+invinst_ddi[i]-invinst_swp[i])))
+    invnf_c.append(int(round(invnf_dol[i]+invnf_wdo[i]/5+invnf_ddi[i])))
+    
+    
+    
+    
+########################################## todos os valores acimas já estão em bilhões US$ ############################
+    
+    
+    
+    
+
+################################ Abaixo Invertendo o sentido das datas #################################################
+    
+Datas_plot_2 = []
+    
+for i in range(len(Datas_plot)):
+    
+    Datas_plot_2.append(Datas_plot[len(Datas_plot)-i-1])
+
+    
+################ Retirei pessoa jurídica não financeira de swap cambial ######################################
+  
+    
+    
+    
+    
+df_plot = pd.DataFrame({'Datas': Datas_plot_2, 'Foreigners': forei[::-1], 'Banks': bank[::-1], 'Home Investors': invinst[::-1], 'Non Financial Investors': invnf[::-1]}) 
+#df_plot.index = df_plot['Datas']
+
+df_contratos = pd.DataFrame({'Datas': Datas_plot_2, 'Foreigners': forei_c[::-1], 'Banks': bank_c[::-1], 'Home Investors': invinst_c[::-1], 'Non Financial Investors': invnf_c[::-1]}) 
+     
+
+    
+fig=plt.figure(figsize=(30,20), dpi=50)
+
+
+plt.title("DOL+WDO+DDI+SWAP (Financeiro /  milhões $USD)", fontsize=30)
+plt.xlabel('Datas',fontsize=22)
+plt.ylabel('Financeiro /  milhões $USD',fontsize=22)
+
+
+
+
+
+
+
+ax = plt.gca()
+
+ax.xaxis.set_major_locator(MultipleLocator(1))
+ax.yaxis.set_major_locator(MultipleLocator(10000))
+
+
+ax.set_facecolor((0.10, 0.20, 0.40))
+
+
+
+df_plot.plot(kind='line',x='Datas', y='Foreigners', label='Foreigners',color='red', marker ='o',linewidth=2,   markersize=12,markerfacecolor='lightgray',markeredgewidth=1, ax=ax)
+df_plot.plot(kind='line',x='Datas', y='Banks',color='orange', label='Banks', marker = '^',linewidth=2,   markersize=12,markerfacecolor='lightgray',markeredgewidth=1, ax=ax)
+df_plot.plot(kind='line',x='Datas', y='Home Investors',color='lightgreen', label='Home Investors', marker ='s',linewidth=2,   markersize=12,markerfacecolor='lightgray',markeredgewidth=1, ax=ax)
+df_plot.plot(kind='line',x='Datas', y='Non Financial Investors',color='lightblue', label = 'Non Financial Investors', marker = 'd',linewidth=2,   markersize=12,markerfacecolor='lightgray',markeredgewidth=1, ax=ax)
+
+
+for a in range(len(df_plot)): 
+    plt.text(a, 1.05*df_plot.at[a, 'Foreigners'],format(df_plot.at[a, 'Foreigners'], ',d'),fontweight ='semibold', verticalalignment='bottom',color='white', horizontalalignment='center', fontsize=20,rotation=10 )
+    plt.text(a, 1.05*df_plot.at[a, 'Banks'],format(df_plot.at[a, 'Banks'], ',d'),verticalalignment='top',fontweight ='semibold', horizontalalignment='center',color='white', fontsize=20,rotation=10 )
+    plt.text(a, 1.4*df_plot.at[a, 'Home Investors'],format(df_plot.at[a, 'Home Investors'], ',d'),verticalalignment='bottom',fontweight ='semibold',color='white', horizontalalignment='center', fontsize=20,rotation=10 )
+    plt.text(a, 1.5*df_plot.at[a, 'Non Financial Investors'],format(df_plot.at[a, 'Non Financial Investors'],',d'),verticalalignment='bottom',fontweight ='semibold',color='white', horizontalalignment='center', fontsize=20,rotation=10 )
+    
+
+
+
+plt.xticks(rotation=30)
+
+plt.xticks(fontsize=18)
+plt.yticks(fontsize=20)
+
+
+
+
+l=plt.legend().get_texts()
+
+for text in l:
+    text.set_color("white")
+    text.set_verticalalignment("center")
+    text.set_fontsize(30)
+    
+
+plt.legend( fontsize= 25, loc='upper right' )
+
+
+ax.yaxis.set_major_formatter(mpl.ticker.StrMethodFormatter('{x:,.0f}'))
+
+plt.xlim(right=14.5)
+plt.xlim(left=-0.5)
+plt.ylim(top=1.35*df_plot['Banks'].max())
+#plt.ylim(bottom=)
+
+plt.grid(  color='w', linestyle='-', linewidth=0.5)
+
+
+
+fig=plt.gcf()
+
+
+#plt.show()
+
+fig.savefig('DOL.png')
+
+plt.close(fig)
+
+
+# In[38]:
+
+
+#print(j)
+#pd.set_option("display.max_rows", None, "display.max_columns", None)
+#print(df_emaberto.dtypes)
+
+
+# In[39]:
+
+
+#print(df_emaberto)
+#print(Datas_rel)
+
+
+# In[40]:
+
+
+wb_report= Workbook()
+ws = wb_report.active
+ws.title= "Open Contracts"
+ws_2 = wb_report.create_sheet("Players")
+
+
+
+
+Estilo = NamedStyle(name="Estilo")
+
+Estilo.font= Font(size=10, b=False)
+
+Estilo.alignment = Alignment(horizontal="center", vertical="center")
+
+bd = Side(style="thin", color="000000")
+
+Estilo.border = Border(left=bd, top=bd, right=bd, bottom=bd)
+
+
+
+
+Estilo2 = NamedStyle(name="Estilo2")
+
+Estilo2.font= Font(size=15, b=True, color="00FFFFFF")
+
+Estilo2.alignment = Alignment(horizontal="left", vertical="center")
+
+bd = Side(style="thin", color="000000")
+
+Estilo2.border = Border(left=bd, top=bd, right=bd, bottom=bd)
+
+Estilo2.fill = PatternFill("solid", fgColor="00003366")
+
+
+
+Estilo3 = NamedStyle(name="Estilo3")
+
+Estilo3.font= Font(size=10, b=True, color="00FFFFFF")
+
+Estilo3.alignment = Alignment(horizontal="center", vertical="center")
+
+bd = Side(style="thin", color="000000")
+
+Estilo3.border = Border(left=bd, top=bd, right=bd, bottom=bd)
+
+Estilo3.fill = PatternFill("solid", fgColor="00003366")
+
+
+
+
+Estilo4 = NamedStyle(name="Estilo4")
+
+Estilo4.font= Font(size=10, b=True, color="00003366")
+
+Estilo4.alignment = Alignment(horizontal="center", vertical="center")
+
+bd = Side(style="thin", color="000000")
+
+Estilo4.border = Border(left=bd, top=bd, right=bd, bottom=bd)
+
+Estilo4.fill = PatternFill("solid", fgColor="00C0C0C0")
+
+
+
+
+Estilo5 = NamedStyle(name="Estilo5")
+
+Estilo5.font= Font(size=15, b=True, color="00FFFFFF")
+
+Estilo5.alignment = Alignment(horizontal="left", vertical="center")
+
+bd = Side(style="thin", color="000000")
+
+Estilo5.border = Border(left=bd, top=bd, right=bd, bottom=bd)
+
+Estilo5.fill = PatternFill("solid", fgColor="00003366")
+
+
+
+
+
+#################################    DI    #################################################
+
+column = str(chr(64 + 1))
+ws.column_dimensions[column].width = 13
+
+
+
+for i in range(1,150):
+        
+    a=get_column_letter(i)    
+    
+    #column = str(chr(64 + i))
+ 
+    ws.column_dimensions[a].width = 15
+            
+
+
+
+    
+p=0
+q=0
+r=0
+aux=0
+aux_2=0
+aux_var_1=[]
+venc_di=[]
+
+
+
+
+for k in Datas_rel:
+
+    ws .cell(row = 45 - Datas_rel.index(k) , column = 1).value=k
+
+    ws .cell(row = 45 - Datas_rel.index(k) , column = 1).style=Estilo
+    
+    ws .cell(row = 45 - Datas_rel.index(k) , column = 1).style=Estilo4
+    
+    
+    
+    while  aux<len(df_emaberto) and df_emaberto.at[aux, "Data"]==k:
+            
+            if ("DI1" in df_emaberto.at[aux, "Mercadoria"]):
+                r=r+1
+                aux=aux+1
+            else:
+                aux=aux+1
+            
+    
+    
+    ## Essa parte acima pega o número de linhas de DI1 com a variavel r para poder imprimir os vencimentos em ordem crescente
+
+    
+    while  p <len(df_emaberto) and df_emaberto.at[p, "Data"]==k:
+        
+
+    
+        if ("DI1" in df_emaberto.at[p, "Mercadoria"] and Datas_rel.index(k)==0):
+            
+            aux_var_1.append(df_emaberto.at[p+r-2*aux_2-1, "Em Aberto"]) # calcula Var
+            
+            ws .cell(row = 30 , column = 2+q).value = df_emaberto.at[p+r-2*aux_2-1, "Vencimento"]
+            
+            ws .cell(row = 30 , column = 2+q).style=Estilo
+
+            ws .cell(row = 45-Datas_rel.index(k) , column = 2+q).value = df_emaberto.at[p+r-2*aux_2-1, "Em Aberto"]
+      
+            ws .cell(row = 45-Datas_rel.index(k) , column = 2+q).style=Estilo
+            
+            
+            venc_di.append(df_emaberto.at[p+r-2*aux_2-1,"Vencimento"])
+            
+            p=p+1
+            q=q+1
+            aux_2=aux_2+1
+            
+               
+        elif ("DI1" in df_emaberto.at[p, "Mercadoria"] and Datas_rel.index(k)>0):
+        
+            
+            for i in venc_di:
+                
+                ws .cell(row = 45-Datas_rel.index(k) , column = 2+venc_di.index(i)).style=Estilo
+                
+                if (df_emaberto.at[p+r-2*aux_2-1, "Vencimento"]==i):
+            
+    
+                    ws .cell(row = 45-Datas_rel.index(k) , column = 2+venc_di.index(i)).value = df_emaberto.at[p+r-2*aux_2-1, "Em Aberto"]
+
+                    ws .cell(row = 45-Datas_rel.index(k) , column = 2+venc_di.index(i)).style=Estilo
+                
+                    
+                    if Datas_rel.index(k)==1:
+            
+                        aux_var_1[venc_di.index(i)] = aux_var_1[venc_di.index(i)] -  df_emaberto.at[p+r-2*aux_2-1, "Em Aberto"] # calcula Var
+                
+            
+            p=p+1
+            q=q+1
+            aux_2=aux_2+1
+                 
+            
+        else:
+            
+            ws.cell(row=28,column =1).value="Open Contracts DI"
+            
+            
+            for i in range (1,len(aux_var_1)+2):
+                
+                ws.cell(row=28,column =i).style=Estilo2  # Estilo Titulo
+                ws.cell(row=30,column =i).style=Estilo3  # Estilo Datas
+                
+            
+            if Datas_rel.index(k)==14:
+            
+                for i in range(0,len(aux_var_1)):
+
+                    ws.cell(row=46,column = 1).value = "Var"
+                    ws.cell(row=46,column =i+2).value = aux_var_1[i]
+                    ws .cell(row = 46, column = i+2).style=Estilo
+                    ws .cell(row = 46, column = 1).style=Estilo4
+            
+
+            
+            p=p+1
+            q=0
+            aux_2=0
+            
+           
+            
+            if (p==len(df_emaberto)):
+                break
+        
+       
+       
+       
+    r=0  #Zera a variavel para a próxima data
+   
+
+
+
+ ##################################    DOL    #################################################
+
+p=0
+q=0
+r=0
+aux=0
+aux_2=0
+aux_var_1=[]
+aux_var_2 =[]
+venc_dol=[]
+
+
+
+for k in Datas_rel:
+
+    ws .cell(row = 69 - Datas_rel.index(k) , column = 1).value=k
+
+    #ws .cell(row = 69 - Datas_rel.index(k) , column = 1).style=Estilo
+    
+    ws .cell(row = 69 - Datas_rel.index(k) , column = 1).style=Estilo4
+    
+    
+    while  aux<len(df_emaberto) and df_emaberto.at[aux, "Data"]==k:
+            
+            if ("DOL" == df_emaberto.at[aux, "Mercadoria"]):
+                r=r+1
+                aux=aux+1
+            else:
+                aux=aux+1
+            
+    
+    
+    ## Essa parte acima pega o número de linhas de DI1 com a variavel r para poder imprimir os vencimentos em ordem crescente
+
+    
+    while  p <len(df_emaberto) and df_emaberto.at[p, "Data"]==k:
+        
+        
+    
+        if ("DOL" == df_emaberto.at[p, "Mercadoria"] and Datas_rel.index(k)==0):
+            
+            aux_var_1.append(df_emaberto.at[p+r-2*aux_2-1, "Em Aberto"]) # calcula Var
+    
+            ws .cell(row = 54 , column = 2+q).value = df_emaberto.at[p+r-2*aux_2-1, "Vencimento"]
+            
+            ws .cell(row = 54 , column = 2+q).style=Estilo
+
+            ws .cell(row = 69-Datas_rel.index(k) , column = 2+q).value = df_emaberto.at[p+r-2*aux_2-1, "Em Aberto"]
+            
+            ws .cell(row = 69-Datas_rel.index(k) , column = 2+q).style=Estilo
+            
+            venc_dol.append(df_emaberto.at[p+r-2*aux_2-1,"Vencimento"])
+        
+            p=p+1
+            q=q+1
+            aux_2=aux_2+1
+            
+            
+        elif ("DOL" == df_emaberto.at[p, "Mercadoria"] and Datas_rel.index(k)>0):
+            
+            for i in venc_dol:
+                
+                ws .cell(row = 69-Datas_rel.index(k) , column = 2+venc_dol.index(i)).style=Estilo
+                
+                if (df_emaberto.at[p+r-2*aux_2-1, "Vencimento"]==i):
+
+            
+                    ws .cell(row = 69-Datas_rel.index(k) , column = 2+venc_dol.index(i)).value = df_emaberto.at[p+r-2*aux_2-1, "Em Aberto"] 
+
+                    ws .cell(row = 69-Datas_rel.index(k) , column = 2+venc_dol.index(i)).style=Estilo
+
+            
+                    if Datas_rel.index(k)==1:
+            
+                        aux_var_1[venc_dol.index(i)] = aux_var_1[venc_dol.index(i)] -  df_emaberto.at[p+r-2*aux_2-1, "Em Aberto"] # calcula Var
+                
+                
+            p=p+1
+            q=q+1
+            aux_2=aux_2+1
+            
+                
+            
+        else:
+            
+            ws.cell(row=52,column =1).value="Open Contracts DOL"
+            
+            
+            for i in range (1,len(aux_var_1)+2):
+                
+                ws.cell(row=52,column =i).style=Estilo2
+                ws.cell(row=54,column =i).style=Estilo3
+                
+                
+            if Datas_rel.index(k)==14:
+            
+                for i in range(0,len(aux_var_1)):
+
+                    ws.cell(row=70,column = 1).value = "Var"
+                    ws.cell(row=70,column =i+2).value = aux_var_1[i]
+                    ws .cell(row = 70, column = i+2).style=Estilo
+                    ws .cell(row = 70, column = 1).style=Estilo4
+                    
+            
+            p=p+1
+            q=0
+            aux_2=0
+            
+           
+            
+            if (p==len(df_emaberto)):
+                break
+        
+       
+       
+       
+    r=0  #Zera a variavel para a próxima data
+   
+    
+
+##################################    IBOV    #################################################
+
+p=0
+q=0
+r=0
+aux=0
+aux_2=0
+aux_var_1=[]
+aux_var_2 =[]
+venc_ibov = []
+
+
+
+for k in Datas_rel:
+
+    ws .cell(row = 93 - Datas_rel.index(k) , column = 1).value=k
+
+    ws .cell(row = 93 - Datas_rel.index(k) , column = 1).style=Estilo
+    
+    ws .cell(row = 93 - Datas_rel.index(k) , column = 1).style=Estilo4
+    
+    
+    while  aux<len(df_emaberto) and df_emaberto.at[aux, "Data"]==k:
+            
+            if ("IND" in df_emaberto.at[aux, "Mercadoria"]):
+                r=r+1
+                aux=aux+1
+            else:
+                aux=aux+1
+            
+    
+    
+    ## Essa parte acima pega o número de linhas de DI1 com a variavel r para poder imprimir os vencimentos em ordem crescente
+
+    
+    while  p <len(df_emaberto) and df_emaberto.at[p, "Data"]==k:
+        
+        
+    
+        if ("IND" in df_emaberto.at[p, "Mercadoria"] and Datas_rel.index(k)==0):
+            
+            aux_var_1.append(df_emaberto.at[p+r-2*aux_2-1, "Em Aberto"]) # calcula Var
+    
+            ws .cell(row = 78 , column = 2+q).value = df_emaberto.at[p+r-2*aux_2-1, "Vencimento"]
+            
+            ws .cell(row = 78 , column = 2+q).style=Estilo
+
+            ws .cell(row = 93-Datas_rel.index(k) , column = 2+q).value = df_emaberto.at[p+r-2*aux_2-1, "Em Aberto"]
+            
+            ws .cell(row = 93-Datas_rel.index(k) , column = 2+q).style=Estilo
+            
+            venc_ibov.append(df_emaberto.at[p+r-2*aux_2-1,"Vencimento"])
+        
+            p=p+1
+            q=q+1
+            aux_2=aux_2+1
+            
+            
+        elif ("IND" in df_emaberto.at[p, "Mercadoria"] and Datas_rel.index(k)>0):
+            
+            for i in venc_ibov:
+                
+                ws .cell(row = 93-Datas_rel.index(k) , column = 2+venc_ibov.index(i)).style=Estilo
+            
+                if (df_emaberto.at[p+r-2*aux_2-1, "Vencimento"]==i):
+
+    
+                    ws .cell(row = 93-Datas_rel.index(k) , column = 2+venc_ibov.index(i)).value = df_emaberto.at[p+r-2*aux_2-1, "Em Aberto"]
+
+                    ws .cell(row = 93-Datas_rel.index(k) , column = 2+venc_ibov.index(i)).style=Estilo
+            
+            
+                    if Datas_rel.index(k)==1:
+            
+                        aux_var_1[venc_ibov.index(i)] = aux_var_1[venc_ibov.index(i)] -  df_emaberto.at[p+r-2*aux_2-1, "Em Aberto"] # calcula Var
+
+            
+            p=p+1
+            q=q+1
+            aux_2=aux_2+1
+                
+           
+            
+        else:
+            
+            ws.cell(row=76,column =1).value="Open Contracts IND"
+        
+            
+            for i in range (1,len(aux_var_1)+2):
+                
+                ws.cell(row=76,column =i).style=Estilo2
+                ws.cell(row=78,column =i).style=Estilo3
+            
+            
+            if Datas_rel.index(k)==14:
+            
+                for i in range(0,len(aux_var_1)):
+
+                    ws.cell(row=94,column = 1).value = "Var"
+                    ws.cell(row=94,column =i+2).value = aux_var_1[i]
+                    ws .cell(row = 94, column = i+2).style=Estilo
+                    ws .cell(row = 94, column = 1).style=Estilo4
+            
+            p=p+1
+            q=0
+            aux_2=0
+            
+           
+            
+            if (p==len(df_emaberto)):
+                break
+        
+       
+       
+       
+    r=0  #Zera a variavel para a próxima data
+   
+
+
+
+
+ ###################################    DAP   #################################################
+
+p=0
+q=0
+r=0
+aux=0
+aux_2=0
+aux_var_1=[]
+aux_var_2 =[]
+venc_dap=[]
+
+
+
+for k in Datas_rel:
+
+    ws .cell(row = 117 - Datas_rel.index(k) , column = 1).value=k
+
+    ws .cell(row = 117 - Datas_rel.index(k) , column = 1).style=Estilo
+    
+    ws .cell(row = 117 - Datas_rel.index(k) , column = 1).style=Estilo4
+    
+    
+    while  aux<len(df_emaberto) and df_emaberto.at[aux, "Data"]==k:
+            
+            if ("DAP" in df_emaberto.at[aux, "Mercadoria"]):
+                r=r+1
+                aux=aux+1
+            else:
+                aux=aux+1
+                
+  
+    
+    
+    ## Essa parte acima pega o número de linhas do ativo com a variavel r para poder imprimir os vencimentos em ordem crescente
+
+   
+    while   p <len(df_emaberto) and df_emaberto.at[p, "Data"]==k:
+        
+        
+    
+        if ("DAP" in df_emaberto.at[p, "Mercadoria"] and Datas_rel.index(k)==0):
+            
+            aux_var_1.append(df_emaberto.at[p+r-2*aux_2-1, "Em Aberto"]) # calcula Var
+    
+            ws .cell(row = 102 , column = 2+q).value = df_emaberto.at[p+r-2*aux_2-1, "Vencimento"]
+            
+            ws .cell(row = 102 , column = 2+q).style=Estilo
+
+            ws .cell(row = 117-Datas_rel.index(k) , column = 2+q).value = df_emaberto.at[p+r-2*aux_2-1, "Em Aberto"]
+            
+            ws .cell(row = 117-Datas_rel.index(k) , column = 2+q).style=Estilo
+            
+            venc_dap.append(df_emaberto.at[p+r-2*aux_2-1, "Vencimento"])
+            
+            p=p+1
+            q=q+1
+            aux_2=aux_2+1
+    
+            
+               
+        elif ("DAP" in df_emaberto.at[p, "Mercadoria"] and Datas_rel.index(k)>0):
+            
+            for i in venc_dap:
+                
+                ws .cell(row = 117-Datas_rel.index(k) , column = 2+venc_dap.index(i)).style=Estilo
+                
+                 
+                if (df_emaberto.at[p+r-2*aux_2-1, "Vencimento"] == i):
+                        
+                    ws .cell(row = 117-Datas_rel.index(k) , column = 2+venc_dap.index(i)).value = df_emaberto.at[p+r-2*aux_2-1, "Em Aberto"]
+            
+                    ws .cell(row = 117-Datas_rel.index(k) , column = 2+venc_dap.index(i)).style=Estilo
+                
+            
+                    if Datas_rel.index(k)==1:
+            
+                        aux_var_1[venc_dap.index(i)] = aux_var_1[venc_dap.index(i)] -  df_emaberto.at[p+r-2*aux_2-1, "Em Aberto"] # calcula Var
+
+            p=p+1
+            q=q+1
+            aux_2=aux_2+1
+    
+            
+        else:
+            
+            ws.cell(row=100,column =1).value="Open Contracts DAP"
+        
+            
+            for i in range (1,len(aux_var_1)+2):
+                
+                ws.cell(row=100,column =i).style=Estilo2
+                ws.cell(row=102,column =i).style=Estilo3
+            
+            
+            if Datas_rel.index(k)==14:
+            
+                for i in range(0,len(aux_var_1)):
+
+                    ws.cell(row=118,column = 1).value = "Var"
+                    ws.cell(row=118,column =i+2).value = aux_var_1[i]
+                    ws .cell(row = 118, column = i+2).style=Estilo
+                    ws .cell(row = 118, column = 1).style=Estilo4
+            
+            p=p+1
+            q=0
+            aux_2=0
+          
+           
+            
+            if (p==len(df_emaberto)):
+                break
+        
+       
+       
+       
+    r=0  #Zera a variavel para a próxima data
+   
+    
+    
+    
+###################################    WDO   #################################################
+
+p=0
+q=0
+r=0
+aux=0
+aux_2=0
+aux_var_1=[]
+aux_var_2 =[]
+venc_wdo=[]
+
+
+for k in Datas_rel:
+
+    ws .cell(row = 141 - Datas_rel.index(k) , column = 1).value=k
+
+    ws .cell(row = 141 - Datas_rel.index(k) , column = 1).style=Estilo
+    
+    ws .cell(row = 141 - Datas_rel.index(k) , column = 1).style=Estilo4
+    
+    
+    while  aux<len(df_emaberto) and df_emaberto.at[aux, "Data"]==k:
+            
+            if ("WDO" in df_emaberto.at[aux, "Mercadoria"]):
+                r=r+1
+                aux=aux+1
+            else:
+                aux=aux+1
+            
+  
+    
+    ## Essa parte acima pega o número de linhas de DI1 com a variavel r para poder imprimir os vencimentos em ordem crescente
+
+    
+    while  p <len(df_emaberto) and df_emaberto.at[p, "Data"]==k:
+        
+        
+    
+        if ("WDO" in df_emaberto.at[p, "Mercadoria"] and Datas_rel.index(k)==0):
+            
+            aux_var_1.append(df_emaberto.at[p+r-2*aux_2-1, "Em Aberto"]) # calcula Var
+    
+            ws .cell(row = 126 , column = 2+q).value = df_emaberto.at[p+r-2*aux_2-1, "Vencimento"]
+            
+            ws .cell(row = 126 , column = 2+q).style=Estilo
+
+            ws .cell(row = 141-Datas_rel.index(k) , column = 2+q).value = df_emaberto.at[p+r-2*aux_2-1, "Em Aberto"]
+            
+            ws .cell(row = 141-Datas_rel.index(k) , column = 2+q).style=Estilo
+            
+            venc_wdo.append(df_emaberto.at[p+r-2*aux_2-1, "Vencimento"])
+        
+            p=p+1
+            q=q+1
+            aux_2=aux_2+1
+            
+            
+        elif ("WDO" in df_emaberto.at[p, "Mercadoria"] and Datas_rel.index(k)>0):
+            
+            for i in venc_wdo:
+                
+                ws .cell(row = 141-Datas_rel.index(k) , column = 2+venc_wdo.index(i)).style=Estilo
+                
+                if (df_emaberto.at[p+r-2*aux_2-1, "Vencimento"]==i):
+
+    
+                    ws .cell(row = 141-Datas_rel.index(k) , column = 2+venc_wdo.index(i)).value = df_emaberto.at[p+r-2*aux_2-1, "Em Aberto"]
+
+                    ws .cell(row = 141-Datas_rel.index(k) , column = 2+venc_wdo.index(i)).style=Estilo
+            
+                    if Datas_rel.index(k)==1:
+            
+                        aux_var_1[venc_wdo.index(i)] = aux_var_1[venc_wdo.index(i)] -  df_emaberto.at[p+r-2*aux_2-1, "Em Aberto"] # calcula Var
+
+            
+            p=p+1
+            q=q+1
+            aux_2=aux_2+1
+                 
+            
+        else:
+            
+            ws.cell(row=124,column =1).value="Open Contracts WDO"
+        
+            
+            for i in range (1,len(aux_var_1)+2):
+                
+                ws.cell(row=124,column =i).style=Estilo2
+                ws.cell(row=126,column =i).style=Estilo3
+                
+            
+            if Datas_rel.index(k)==14:  
+            
+                for i in range(0,len(aux_var_1)):
+
+                    ws.cell(row=142,column = 1).value = "Var"
+                    ws.cell(row=142,column =i+2).value = aux_var_1[i]
+                    ws .cell(row = 142, column = i+2).style=Estilo
+                    ws .cell(row = 142, column = 1).style=Estilo4
+            
+            p=p+1
+            q=0
+            aux_2=0
+            
+           
+            
+            if (p==len(df_emaberto)):
+                break
+        
+       
+       
+       
+    r=0  #Zera a variavel para a próxima data
+   
+
+
+ ###################################    WIN  #################################################
+
+p=0
+q=0
+r=0
+aux=0
+aux_2=0
+aux_var_1=[]
+aux_var_2 =[]
+venc_win = []
+
+
+for k in Datas_rel:
+
+    ws .cell(row = 165 - Datas_rel.index(k) , column = 1).value=k
+
+    ws .cell(row = 165 - Datas_rel.index(k) , column = 1).style=Estilo
+    
+    ws .cell(row = 165 - Datas_rel.index(k) , column = 1).style=Estilo4
+    
+    
+    
+    
+    while  aux<len(df_emaberto) and df_emaberto.at[aux, "Data"]==k:
+            
+            if ("WIN" in df_emaberto.at[aux, "Mercadoria"]):
+                r=r+1
+                aux=aux+1
+            else:
+                aux=aux+1
+            
+    print(aux)
+    
+    ## Essa parte acima pega o número de linhas de DI1 com a variavel r para poder imprimir os vencimentos em ordem crescente
+
+    
+    while  p <len(df_emaberto) and df_emaberto.at[p, "Data"]==k:
+        
+        
+    
+        if ("WIN" in df_emaberto.at[p, "Mercadoria"] and Datas_rel.index(k)==0):
+            
+            aux_var_1.append(df_emaberto.at[p+r-2*aux_2-1, "Em Aberto"]) # calcula Var
+    
+            ws .cell(row = 150 , column = 2+q).value = df_emaberto.at[p+r-2*aux_2-1, "Vencimento"]
+            
+            ws .cell(row = 150 , column = 2+q).style=Estilo
+
+            ws .cell(row = 165-Datas_rel.index(k) , column = 2+q).value = df_emaberto.at[p+r-2*aux_2-1, "Em Aberto"]
+            
+            ws .cell(row = 165-Datas_rel.index(k) , column = 2+q).style=Estilo
+            
+            venc_win.append(df_emaberto.at[p+r-2*aux_2-1, "Vencimento"])
+        
+            p=p+1
+            q=q+1
+            aux_2=aux_2+1
+            
+            
+        elif ("WIN" in df_emaberto.at[p, "Mercadoria"] and Datas_rel.index(k)>0):
+            
+            for i in venc_win:
+                
+                ws .cell(row = 165-Datas_rel.index(k) , column = 2+venc_win.index(i)).style=Estilo
+                
+                if (df_emaberto.at[p+r-2*aux_2-1, "Vencimento"] == i):
+                    
+            
+                    ws .cell(row = 165-Datas_rel.index(k) , column = 2+venc_win.index(i)).value = df_emaberto.at[p+r-2*aux_2-1, "Em Aberto"]
+
+                    ws .cell(row = 165-Datas_rel.index(k) , column = 2+venc_win.index(i)).style=Estilo
+                    
+                    
+                    
+                    if Datas_rel.index(k)==1:
+            
+                        aux_var_1[venc_win.index(i)] = aux_var_1[venc_win.index(i)] -  df_emaberto.at[p+r-2*aux_2-1, "Em Aberto"] # calcula Var
+
+                    
+            
+            p=p+1
+            q=q+1
+            aux_2=aux_2+1
+                
+            
+        else:
+            
+            ws.cell(row=148,column =1).value="Open Contracts WIN"
+        
+            
+            for i in range (1,len(aux_var_1)+2):
+                
+                ws.cell(row=148,column =i).style=Estilo2
+                ws.cell(row=150,column =i).style=Estilo3
+                
+            
+            if Datas_rel.index(k)==14:  
+            
+                for i in range(0,len(aux_var_1)):
+
+                    ws.cell(row=166,column = 1).value = "Var"
+                    ws.cell(row=166,column =i+2).value = aux_var_1[i]
+                    ws .cell(row = 166, column = i+2).style=Estilo
+                    ws .cell(row = 166, column = 1).style=Estilo4
+            
+            p=p+1
+            q=0
+            aux_2=0
+            
+           
+            
+            #if (p==len(df_emaberto)):
+                #break
+        
+       
+       
+    
+       
+    r=0  #Zera a variavel para a próxima data
+    
+
+    
+####################################    CPM  #################################################
+
+p=0
+q=0
+r=0
+aux=0
+aux_2=0
+aux_var_1=[]
+aux_var_2 =[]
+venc_cpm = []
+
+
+for k in Datas_rel:
+
+    ws .cell(row = 189 - Datas_rel.index(k) , column = 1).value=k
+
+    ws .cell(row = 189 - Datas_rel.index(k) , column = 1).style=Estilo
+    
+    ws .cell(row = 189 - Datas_rel.index(k) , column = 1).style=Estilo4
+    
+    
+    while  aux<len(df_emaberto) and df_emaberto.at[aux, "Data"]==k:
+            
+            if ("CPM" in df_emaberto.at[aux, "Mercadoria"]):
+                r=r+1
+                aux=aux+1
+            else:
+                aux=aux+1
+            
+    
+    
+    ## Essa parte acima pega o número de linhas de DI1 com a variavel r para poder imprimir os vencimentos em ordem crescente
+
+    
+    while  p <len(df_emaberto) and df_emaberto.at[p, "Data"]==k:
+        
+        
+    
+        if ("CPM" in df_emaberto.at[p, "Mercadoria"] and Datas_rel.index(k)==0):
+            
+            
+            aux_var_1.append(df_emaberto.at[p+r-2*aux_2-1, "Em Aberto"]) # calcula Var
+        
+            ws .cell(row = 174 , column = 2+q).value = df_emaberto.at[p+r-2*aux_2-1, "Vencimento"]
+            
+            ws .cell(row = 174 , column = 2+q).style=Estilo
+
+            ws .cell(row = 189-Datas_rel.index(k) , column = 2+q).value = df_emaberto.at[p+r-2*aux_2-1, "Em Aberto"]
+            
+            ws .cell(row = 189-Datas_rel.index(k) , column = 2+q).style=Estilo
+            
+            venc_cpm.append(df_emaberto.at[p+r-2*aux_2-1, "Vencimento"])
+        
+            p=p+1
+            q=q+1
+            aux_2=aux_2+1
+            
+            
+        elif ("CPM" in df_emaberto.at[p, "Mercadoria"] and Datas_rel.index(k)>0):
+            
+            for i in venc_cpm:
+                
+                ws .cell(row = 189-Datas_rel.index(k) , column = 2+venc_cpm.index(i)).style=Estilo
+                
+            
+                if (df_emaberto.at[p+r-2*aux_2-1, "Vencimento"]==i):
+
+    
+                    ws .cell(row = 189-Datas_rel.index(k) , column = 2+venc_cpm.index(i)).value = df_emaberto.at[p+r-2*aux_2-1, "Em Aberto"]
+
+                    ws .cell(row = 189-Datas_rel.index(k) , column = 2+venc_cpm.index(i)).style=Estilo
+            
+                    if Datas_rel.index(k)==1:
+            
+                        aux_var_1[venc_cpm.index(i)] = aux_var_1[venc_cpm.index(i)] -  df_emaberto.at[p+r-2*aux_2-1, "Em Aberto"] # calcula Var
+
+            
+            p=p+1
+            q=q+1
+            aux_2=aux_2+1
+                
+            
+        else:
+            
+            ws.cell(row=172,column =1).value="Open Contracts CPM"
+        
+            
+            for i in range (1,len(aux_var_1)+2):
+                
+                ws.cell(row=172,column =i).style=Estilo2
+                ws.cell(row=174,column =i).style=Estilo3
+                
+            
+            if Datas_rel.index(k)==14:  
+            
+                for i in range(0,len(aux_var_1)):
+
+                    ws.cell(row=190,column = 1).value = "Var"
+                    ws.cell(row=190,column =i+2).value = aux_var_1[i]
+                    ws .cell(row = 190, column = i+2).style=Estilo
+                    ws .cell(row = 190, column = 1).style=Estilo4
+            
+            p=p+1
+            q=0
+            aux_2=0
+            
+           
+            
+            if (p==len(df_emaberto)):
+                break
+        
+       
+       
+       
+    r=0  #Zera a variavel para a próxima data
+    
+    
+   
+
+
+# In[41]:
+
+
+# print(df_emaberto)
+
+
+# In[42]:
+
+
+#display(df_t_2)
+
+# for i in Datas_rel:
+#     print(i)
+
+
+# In[43]:
+
+
+########################################  Compra - Venda Players ############################################################ 
+
+
+
+column_2 = str(chr(64 + 1))
+
+ws_2.column_dimensions[column_2].width = 30
+
+
+column_2 = str(chr(64 + 2))
+
+ws_2.column_dimensions[column_2].width = 15
+
+
+column_2 = str(chr(64 + 4))
+
+ws_2.column_dimensions[column_2].width = 15
+
+
+column_2 = str(chr(64 + 7))
+
+ws_2.column_dimensions[column_2].width = 30
+
+
+column_2 = str(chr(64 + 8))
+
+ws_2.column_dimensions[column_2].width = 15
+
+
+column_2 = str(chr(64 + 10))
+
+ws_2.column_dimensions[column_2].width = 15
+
+
+ws.row_dimensions[7].height = 70
+
+
+##########################################   DDI ###########################################################
+pc=[]
+pv=[]
+aux=0
+aux_total=0
+
+for j in range(0,len(df_t)):
+    
+    
+    name = df_t.loc[j].at["Mercadoria"]
+    
+            
+    if ("MERCADO FUTURO DE CUPOM CAMBIAL - DDI" in name):
+                
+        ws_2 .cell(row = 6, column = 1).value = "MERCADO FUTURO DE CUPOM CAMBIAL - DDI"
+        ws_2 .cell(row = 7, column = 2).value = "Compra"
+        ws_2 .cell(row = 7, column = 3).value = "%"
+        ws_2 .cell(row = 7, column = 4).value = "Venda"
+        ws_2 .cell(row = 7, column = 5).value = "%"
+        ws_2 .cell(row = 8, column = 2).value = "Contratos"
+        ws_2 .cell(row = 8, column = 4).value = "Contratos"
+                
+        ws_2 .cell(row = 9 + aux, column = 2).value = df_t.loc[j].at["Compra"]
+        
+        pc.append(df_t.loc[j].at["Compra"])   # Armazena vetor de Compras para calculo da porcentagem
+        
+        pv.append(df_t.loc[j].at["Venda"])    # Armazena vetor de Vendas para calculo da porcentagem
+        
+        if df_t.loc[j].at["Tipo_Invest"]=="Total Geral":
+            
+                aux_total= df_t.loc[j].at["Compra"] #Armazena total para calculo da coluna percentual
+       
+        
+        ws_2 .cell(row = 9 + aux, column = 4).value = df_t.loc[j].at["Venda"] 
+        ws_2 .cell(row = 9 + aux, column = 1).value = df_t.loc[j].at["Tipo_Invest"] 
+        
+        aux=aux+1   
+    
+        
+        
+        
+########################### Estilo do quadro
+
+for i in range(0,5):
+        
+    for k in range(0,aux-1):
+        
+        if aux_total == 0:
+            
+            aux_total=1
+            
+        
+        ws_2 .cell(row = 9 + k, column = 3).value = pc[k]/aux_total
+        ws_2 .cell(row = 9 + k, column = 5).value = pv[k]/aux_total
+        
+        
+        
+    ws_2 .cell(row=6, column=i+1).style=Estilo5
+    ws_2 .cell(row=7, column=i+1).style=Estilo3
+    ws_2 .cell(row=8, column=i+1).style=Estilo3            
+    ws_2 .cell(row=8+aux, column=i+1).style=Estilo3             
+
+for i in range(0,5):
+        
+    for k in range(0,aux-1):
+        
+        
+        if (i==2 or i==4):
+            
+            ws_2 .cell(row = 9 + k, column = 3).number_format = '0.00%'
+            ws_2 .cell(row = 9 + k, column = 3).border = Border(left=bd, top=bd, right=bd, bottom=bd)
+            ws_2 .cell(row = 9 + k, column = 3).alignment = Alignment(horizontal="center", vertical="center")
+            ws_2 .cell(row = 9 + k, column = 5).number_format = '0.00%'
+            ws_2 .cell(row = 9 + k, column = 5).border = Border(left=bd, top=bd, right=bd, bottom=bd)
+            ws_2 .cell(row = 9 + k, column = 5).alignment = Alignment(horizontal="center", vertical="center")
+        else:
+            
+            ws_2 .cell(row=9+k, column=i+1).style=Estilo
+        
+############################################################################################################        
+        
+    
+##########################################   DI1 ###########################################################
+pc=[]
+pv=[]
+aux=0
+aux_total=0
+
+for j in range(0,len(df_t)):
+    
+    
+    name = df_t.loc[j].at["Mercadoria"]
+    
+            
+    if ("MERCADO FUTURO DE TAXA DE JURO" in name):
+                
+        ws_2 .cell(row = 6, column = 7).value = "MERCADO FUTURO DE TAXA DE JURO"
+        ws_2 .cell(row = 7, column = 8).value = "Compra"
+        ws_2 .cell(row = 7, column = 9).value = "%"
+        ws_2 .cell(row = 7, column = 10).value = "Venda"
+        ws_2 .cell(row = 7, column = 11).value = "%"
+        ws_2 .cell(row = 8, column = 8).value = "Contratos"
+        ws_2 .cell(row = 8, column = 10).value = "Contratos"
+                
+        ws_2 .cell(row = 9 + aux, column = 8).value = df_t.loc[j].at["Compra"]
+        
+        pc.append(df_t.loc[j].at["Compra"])   # Armazena vetor de Compras para calculo da eporcentagem
+        
+        pv.append(df_t.loc[j].at["Venda"])    # Armazena vetor de Vendas para calculo da eporcentagem
+        
+        if df_t.loc[j].at["Tipo_Invest"]=="Total Geral":
+            
+                aux_total= df_t.loc[j].at["Compra"] #Armazena total para calculo da coluna percentual
+       
+        
+        ws_2 .cell(row = 9 + aux, column = 10).value = df_t.loc[j].at["Venda"] 
+        ws_2 .cell(row = 9 + aux, column = 7).value = df_t.loc[j].at["Tipo_Invest"] 
+        
+        aux=aux+1   
+    
+        
+        
+        
+########################### Estilo do quadro
+
+for i in range(6,11):
+        
+    for k in range(0,aux-1):
+            
+        if aux_total == 0:
+            
+            aux_total=1
+            
+        ws_2 .cell(row = 9 + k, column = 9).value = pc[k]/aux_total
+        ws_2 .cell(row = 9 + k, column = 11).value = pv[k]/aux_total
+        
+        
+        
+    ws_2 .cell(row=6, column=i+1).style=Estilo5
+    ws_2 .cell(row=7, column=i+1).style=Estilo3
+    ws_2 .cell(row=8, column=i+1).style=Estilo3            
+    ws_2 .cell(row=8+aux, column=i+1).style=Estilo3             
+
+for i in range(6,11):
+        
+    for k in range(0,aux-1):
+        
+        
+        if (i==8 or i==10):
+            
+            ws_2 .cell(row = 9 + k, column = 9).number_format = '0.00%'
+            ws_2 .cell(row = 9 + k, column = 9).border = Border(left=bd, top=bd, right=bd, bottom=bd)
+            ws_2 .cell(row = 9 + k, column = 9).alignment = Alignment(horizontal="center", vertical="center")
+            ws_2 .cell(row = 9 + k, column = 11).number_format = '0.00%'
+            ws_2 .cell(row = 9 + k, column = 11).border = Border(left=bd, top=bd, right=bd, bottom=bd)
+            ws_2 .cell(row = 9 + k, column = 11).alignment = Alignment(horizontal="center", vertical="center")
+        else:
+            
+            ws_2 .cell(row=9+k, column=i+1).style=Estilo
+        
+##############################################################################################  
+
+
+##########################################   DOL ###########################################################
+pc=[]
+pv=[]
+aux=0
+aux_total=0
+
+for j in range(0,len(df_t)):
+    
+    
+    name = df_t.loc[j].at["Mercadoria"]
+    
+            
+    if ("MERCADO FUTURO DE DÓLAR" == name):
+                
+        ws_2 .cell(row = 23, column = 1).value = "MERCADO FUTURO DE DÓLAR"
+        ws_2 .cell(row = 24, column = 2).value = "Compra"
+        ws_2 .cell(row = 24, column = 3).value = "%"
+        ws_2 .cell(row = 24, column = 4).value = "Venda"
+        ws_2 .cell(row = 24, column = 5).value = "%"
+        ws_2 .cell(row = 25, column = 2).value = "Contratos"
+        ws_2 .cell(row = 25, column = 4).value = "Contratos"
+                
+        ws_2 .cell(row = 26 + aux, column = 2).value = df_t.loc[j].at["Compra"]
+        
+        pc.append(df_t.loc[j].at["Compra"])   # Armazena vetor de Compras para calculo da porcentagem
+        
+        pv.append(df_t.loc[j].at["Venda"])    # Armazena vetor de Vendas para calculo da porcentagem
+        
+        if df_t.loc[j].at["Tipo_Invest"]=="Total Geral":
+            
+                aux_total= df_t.loc[j].at["Compra"] #Armazena total para calculo da coluna percentual
+       
+        
+        ws_2 .cell(row = 26 + aux, column = 4).value = df_t.loc[j].at["Venda"] 
+        ws_2 .cell(row = 26 + aux, column = 1).value = df_t.loc[j].at["Tipo_Invest"] 
+        
+        aux=aux+1   
+    
+        
+        
+        
+########################### Estilo do quadro
+
+for i in range(0,5):
+        
+    for k in range(0,aux-1):
+        
+        if aux_total == 0:
+            
+            aux_total=1
+            
+        
+        ws_2 .cell(row = 26 + k, column = 3).value = pc[k]/aux_total
+        ws_2 .cell(row = 26 + k, column = 5).value = pv[k]/aux_total
+        
+        
+        
+    ws_2 .cell(row=23, column=i+1).style=Estilo5
+    ws_2 .cell(row=24, column=i+1).style=Estilo3
+    ws_2 .cell(row=25, column=i+1).style=Estilo3            
+    ws_2 .cell(row=25+aux, column=i+1).style=Estilo3             
+
+for i in range(0,5):
+        
+    for k in range(0,aux-1):
+        
+        
+        if (i==2 or i==4):
+            
+            ws_2 .cell(row = 26 + k, column = 3).number_format = '0.00%'
+            ws_2 .cell(row = 26 + k, column = 3).border = Border(left=bd, top=bd, right=bd, bottom=bd)
+            ws_2 .cell(row = 26 + k, column = 3).alignment = Alignment(horizontal="center", vertical="center")
+            ws_2 .cell(row = 26 + k, column = 5).number_format = '0.00%'
+            ws_2 .cell(row = 26 + k, column = 5).border = Border(left=bd, top=bd, right=bd, bottom=bd)
+            ws_2 .cell(row = 26 + k, column = 5).alignment = Alignment(horizontal="center", vertical="center")
+        else:
+            
+            ws_2 .cell(row=26+k, column=i+1).style=Estilo
+        
+############################################################################################################   
+
+
+##########################################   DAP ###########################################################
+pc=[]
+pv=[]
+aux=0
+aux_total=0
+
+for j in range(0,len(df_t)):
+    
+    
+    name = df_t.loc[j].at["Mercadoria"]
+    
+            
+    if ("MERCADO FUTURO DE CUPOM DE DI x IPCA" == name):
+                
+        ws_2 .cell(row = 40, column = 1).value = "MERCADO FUTURO DE CUPOM DE DI x IPCA"
+        ws_2 .cell(row = 41, column = 2).value = "Compra"
+        ws_2 .cell(row = 41, column = 3).value = "%"
+        ws_2 .cell(row = 41, column = 4).value = "Venda"
+        ws_2 .cell(row = 41, column = 5).value = "%"
+        ws_2 .cell(row = 42, column = 2).value = "Contratos"
+        ws_2 .cell(row = 42, column = 4).value = "Contratos"
+                
+        ws_2 .cell(row = 43 + aux, column = 2).value = df_t.loc[j].at["Compra"]
+        
+        pc.append(df_t.loc[j].at["Compra"])   # Armazena vetor de Compras para calculo da porcentagem
+        
+        pv.append(df_t.loc[j].at["Venda"])    # Armazena vetor de Vendas para calculo da porcentagem
+        
+        if df_t.loc[j].at["Tipo_Invest"]=="Total Geral":
+            
+                aux_total= df_t.loc[j].at["Compra"] #Armazena total para calculo da coluna percentual
+       
+        
+        ws_2 .cell(row = 43 + aux, column = 4).value = df_t.loc[j].at["Venda"] 
+        ws_2 .cell(row = 43 + aux, column = 1).value = df_t.loc[j].at["Tipo_Invest"] 
+        
+        aux=aux+1   
+    
+        
+        
+        
+########################### Estilo do quadro
+
+for i in range(0,5):
+        
+    for k in range(0,aux-1):
+        
+        if aux_total == 0:
+            
+            aux_total=1
+            
+        
+        ws_2 .cell(row = 43 + k, column = 3).value = pc[k]/aux_total
+        ws_2 .cell(row = 43 + k, column = 5).value = pv[k]/aux_total
+        
+        
+        
+    ws_2 .cell(row=40, column=i+1).style=Estilo5
+    ws_2 .cell(row=41, column=i+1).style=Estilo3
+    ws_2 .cell(row=42, column=i+1).style=Estilo3            
+    ws_2 .cell(row=42+aux, column=i+1).style=Estilo3             
+
+for i in range(0,5):
+        
+    for k in range(0,aux-1):
+        
+        
+        if (i==2 or i==4):
+            
+            ws_2 .cell(row = 43 + k, column = 3).number_format = '0.00%'
+            ws_2 .cell(row = 43 + k, column = 3).border = Border(left=bd, top=bd, right=bd, bottom=bd)
+            ws_2 .cell(row = 43 + k, column = 3).alignment = Alignment(horizontal="center", vertical="center")
+            ws_2 .cell(row = 43 + k, column = 5).number_format = '0.00%'
+            ws_2 .cell(row = 43 + k, column = 5).border = Border(left=bd, top=bd, right=bd, bottom=bd)
+            ws_2 .cell(row = 43 + k, column = 5).alignment = Alignment(horizontal="center", vertical="center")
+        else:
+            
+            ws_2 .cell(row=43+k, column=i+1).style=Estilo
+        
+############################################################################################################ 
+
+
+##########################################  SCS   ###########################################################
+pc=[]
+pv=[]
+aux=0
+aux_total=0
+
+for j in range(0,len(df_t)):
+    
+    
+    name = df_t.loc[j].at["Mercadoria"]
+    
+            
+    if ("MERCADO SWAP CAMBIAL COM AJUSTE (SCS)" == name):
+                
+        ws_2 .cell(row = 56, column = 1).value = "MERCADO SWAP CAMBIAL COM AJUSTE (SCS)"
+        ws_2 .cell(row = 57, column = 2).value = "Compra"
+        ws_2 .cell(row = 57, column = 3).value = "%"
+        ws_2 .cell(row = 57, column = 4).value = "Venda"
+        ws_2 .cell(row = 57, column = 5).value = "%"
+        ws_2 .cell(row = 58, column = 2).value = "Contratos"
+        ws_2 .cell(row = 58, column = 4).value = "Contratos"
+                
+        ws_2 .cell(row = 59 + aux, column = 2).value = df_t.loc[j].at["Compra"]
+        
+        pc.append(df_t.loc[j].at["Compra"])   # Armazena vetor de Compras para calculo da porcentagem
+        
+        pv.append(df_t.loc[j].at["Venda"])    # Armazena vetor de Vendas para calculo da porcentagem
+        
+        if df_t.loc[j].at["Tipo_Invest"]=="Total Geral":
+            
+                aux_total= df_t.loc[j].at["Compra"] #Armazena total para calculo da coluna percentual
+       
+        
+        ws_2 .cell(row = 59 + aux, column = 4).value = df_t.loc[j].at["Venda"] 
+        ws_2 .cell(row = 59 + aux, column = 1).value = df_t.loc[j].at["Tipo_Invest"] 
+        
+        aux=aux+1   
+    
+        
+        
+        
+########################### Estilo do quadro
+
+for i in range(0,5):
+        
+    for k in range(0,aux-1):
+        
+        if aux_total == 0:
+            
+            aux_total=1
+            
+        
+        ws_2 .cell(row = 59 + k, column = 3).value = pc[k]/aux_total
+        ws_2 .cell(row = 59 + k, column = 5).value = pv[k]/aux_total
+        
+        
+        
+    ws_2 .cell(row=56, column=i+1).style=Estilo5
+    ws_2 .cell(row=57, column=i+1).style=Estilo3
+    ws_2 .cell(row=58, column=i+1).style=Estilo3            
+    ws_2 .cell(row=58+aux, column=i+1).style=Estilo3             
+
+for i in range(0,5):
+        
+    for k in range(0,aux-1):
+        
+        
+        if (i==2 or i==4):
+            
+            ws_2 .cell(row = 59 + k, column = 3).number_format = '0.00%'
+            ws_2 .cell(row = 59 + k, column = 3).border = Border(left=bd, top=bd, right=bd, bottom=bd)
+            ws_2 .cell(row = 59 + k, column = 3).alignment = Alignment(horizontal="center", vertical="center")
+            ws_2 .cell(row = 59 + k, column = 5).number_format = '0.00%'
+            ws_2 .cell(row = 59 + k, column = 5).border = Border(left=bd, top=bd, right=bd, bottom=bd)
+            ws_2 .cell(row = 59 + k, column = 5).alignment = Alignment(horizontal="center", vertical="center")
+        else:
+            
+            ws_2 .cell(row=59+k, column=i+1).style=Estilo
+        
+############################################################################################################ 
+
+
+##########################################  WDO   ###########################################################
+pc=[]
+pv=[]
+aux=0
+aux_total=0
+
+for j in range(0,len(df_t)):
+    
+    
+    name = df_t.loc[j].at["Mercadoria"]
+    
+            
+    if ("Dólar Mini - WDO" == name):
+                
+        ws_2 .cell(row = 70, column = 1).value = "Dólar Mini - WDO"
+        ws_2 .cell(row = 71, column = 2).value = "Compra"
+        ws_2 .cell(row = 71, column = 3).value = "%"
+        ws_2 .cell(row = 71, column = 4).value = "Venda"
+        ws_2 .cell(row = 71, column = 5).value = "%"
+        ws_2 .cell(row = 72, column = 2).value = "Contratos"
+        ws_2 .cell(row = 72, column = 4).value = "Contratos"
+                
+        ws_2 .cell(row = 73 + aux, column = 2).value = df_t.loc[j].at["Compra"]
+        
+        pc.append(df_t.loc[j].at["Compra"])   # Armazena vetor de Compras para calculo da porcentagem
+        
+        pv.append(df_t.loc[j].at["Venda"])    # Armazena vetor de Vendas para calculo da porcentagem
+        
+        if df_t.loc[j].at["Tipo_Invest"]=="Total Geral":
+            
+                aux_total= df_t.loc[j].at["Compra"] #Armazena total para calculo da coluna percentual
+       
+        
+        ws_2 .cell(row = 73 + aux, column = 4).value = df_t.loc[j].at["Venda"] 
+        ws_2 .cell(row = 73 + aux, column = 1).value = df_t.loc[j].at["Tipo_Invest"] 
+        
+        aux=aux+1   
+    
+        
+        
+        
+########################### Estilo do quadro
+
+for i in range(0,5):
+        
+    for k in range(0,aux-1):
+        
+        if aux_total == 0:
+            
+            aux_total=1
+            
+        
+        ws_2 .cell(row = 73 + k, column = 3).value = pc[k]/aux_total
+        ws_2 .cell(row = 73 + k, column = 5).value = pv[k]/aux_total
+        
+        
+        
+    ws_2 .cell(row=70, column=i+1).style=Estilo5
+    ws_2 .cell(row=71, column=i+1).style=Estilo3
+    ws_2 .cell(row=72, column=i+1).style=Estilo3            
+    ws_2 .cell(row=72+aux, column=i+1).style=Estilo3             
+
+for i in range(0,5):
+        
+    for k in range(0,aux-1):
+        
+        
+        if (i==2 or i==4):
+            
+            ws_2 .cell(row = 73 + k, column = 3).number_format = '0.00%'
+            ws_2 .cell(row = 73 + k, column = 3).border = Border(left=bd, top=bd, right=bd, bottom=bd)
+            ws_2 .cell(row = 73 + k, column = 3).alignment = Alignment(horizontal="center", vertical="center")
+            ws_2 .cell(row = 73 + k, column = 5).number_format = '0.00%'
+            ws_2 .cell(row = 73 + k, column = 5).border = Border(left=bd, top=bd, right=bd, bottom=bd)
+            ws_2 .cell(row = 73 + k, column = 5).alignment = Alignment(horizontal="center", vertical="center")
+        else:
+            
+            ws_2 .cell(row=73+k, column=i+1).style=Estilo
+        
+############################################################################################################ 
+
+
+##########################################  IBOV ###########################################################
+pc=[]
+pv=[]
+aux=0
+aux_total=0
+
+for j in range(0,len(df_t)):
+    
+    
+    name = df_t.loc[j].at["Mercadoria"]
+    
+            
+    if ("MERCADO FUTURO DE IBOVESPA" in name):
+                
+        ws_2 .cell(row = 23, column = 7).value = "MERCADO FUTURO DE IBOVESPA"
+        ws_2 .cell(row = 24, column = 8).value = "Compra"
+        ws_2 .cell(row = 24, column = 9).value = "%"
+        ws_2 .cell(row = 24, column = 10).value = "Venda"
+        ws_2 .cell(row = 24, column = 11).value = "%"
+        ws_2 .cell(row = 25, column = 8).value = "Contratos"
+        ws_2 .cell(row = 25, column = 10).value = "Contratos"
+                
+        ws_2 .cell(row = 26 + aux, column = 8).value = df_t.loc[j].at["Compra"]
+        
+        pc.append(df_t.loc[j].at["Compra"])   # Armazena vetor de Compras para calculo da eporcentagem
+        
+        pv.append(df_t.loc[j].at["Venda"])    # Armazena vetor de Vendas para calculo da eporcentagem
+        
+        if df_t.loc[j].at["Tipo_Invest"]=="Total Geral":
+            
+                aux_total= df_t.loc[j].at["Compra"] #Armazena total para calculo da coluna percentual
+       
+        
+        ws_2 .cell(row = 26 + aux, column = 10).value = df_t.loc[j].at["Venda"] 
+        ws_2 .cell(row = 26 + aux, column = 7).value = df_t.loc[j].at["Tipo_Invest"] 
+        
+        aux=aux+1   
+    
+        
+        
+        
+########################### Estilo do quadro
+
+for i in range(6,11):
+        
+    for k in range(0,aux-1):
+        
+        if aux_total == 0:
+            
+            aux_total=1
+            
+        
+        ws_2 .cell(row = 26 + k, column = 9).value = pc[k]/aux_total
+        ws_2 .cell(row = 26 + k, column = 11).value = pv[k]/aux_total
+        
+        
+        
+    ws_2 .cell(row=23, column=i+1).style=Estilo5
+    ws_2 .cell(row=24, column=i+1).style=Estilo3
+    ws_2 .cell(row=25, column=i+1).style=Estilo3            
+    ws_2 .cell(row=25+aux, column=i+1).style=Estilo3             
+
+for i in range(6,11):
+        
+    for k in range(0,aux-1):
+        
+        
+        if (i==8 or i==10):
+            
+            ws_2 .cell(row = 26 + k, column = 9).number_format = '0.00%'
+            ws_2 .cell(row =26 + k, column = 9).border = Border(left=bd, top=bd, right=bd, bottom=bd)
+            ws_2 .cell(row = 26 + k, column = 9).alignment = Alignment(horizontal="center", vertical="center")
+            ws_2 .cell(row = 26 + k, column = 11).number_format = '0.00%'
+            ws_2 .cell(row = 26 + k, column = 11).border = Border(left=bd, top=bd, right=bd, bottom=bd)
+            ws_2 .cell(row = 26 + k, column = 11).alignment = Alignment(horizontal="center", vertical="center")
+        else:
+            
+            ws_2 .cell(row=26+k, column=i+1).style=Estilo
+            
+
+####################################################################################################################
+
+
+
+##########################################  IDIC ###########################################################
+pc=[]
+pv=[]
+aux=0
+aux_total=0
+
+for j in range(0,len(df_t)):
+    
+    
+    name = df_t.loc[j].at["Mercadoria"]
+    
+            
+    if ("MERCADO DE OPÇÕES DE COMPRA DE ÍNDICE IDI" in name):
+                
+        ws_2 .cell(row = 40, column = 7).value = "MERCADO DE OPÇÕES DE COMPRA DE ÍNDICE IDI"
+        ws_2 .cell(row = 41, column = 8).value = "Compra"
+        ws_2 .cell(row = 41, column = 9).value = "%"
+        ws_2 .cell(row = 41, column = 10).value = "Venda"
+        ws_2 .cell(row = 41, column = 11).value = "%"
+        ws_2 .cell(row = 42, column = 8).value = "Contratos"
+        ws_2 .cell(row = 42, column = 10).value = "Contratos"
+                
+        ws_2 .cell(row = 43 + aux, column = 8).value = df_t.loc[j].at["Compra"]
+        
+        pc.append(df_t.loc[j].at["Compra"])   # Armazena vetor de Compras para calculo da eporcentagem
+        
+        pv.append(df_t.loc[j].at["Venda"])    # Armazena vetor de Vendas para calculo da eporcentagem
+        
+        if df_t.loc[j].at["Tipo_Invest"]=="Total Geral":
+            
+                aux_total= df_t.loc[j].at["Compra"] #Armazena total para calculo da coluna percentual
+       
+        
+        ws_2 .cell(row = 43 + aux, column = 10).value = df_t.loc[j].at["Venda"] 
+        ws_2 .cell(row = 43 + aux, column = 7).value = df_t.loc[j].at["Tipo_Invest"] 
+        
+        aux=aux+1   
+    
+        
+        
+        
+########################### Estilo do quadro
+
+for i in range(6,11):
+        
+    for k in range(0,aux-1):
+        
+        if aux_total == 0:
+            
+            aux_total=1
+            
+        
+        ws_2 .cell(row = 43 + k, column = 9).value = pc[k]/aux_total
+        ws_2 .cell(row = 43 + k, column = 11).value = pv[k]/aux_total
+        
+        
+        
+    ws_2 .cell(row=40, column=i+1).style=Estilo5
+    ws_2 .cell(row=41, column=i+1).style=Estilo3
+    ws_2 .cell(row=42, column=i+1).style=Estilo3            
+    ws_2 .cell(row=42+aux, column=i+1).style=Estilo3             
+
+for i in range(6,11):
+        
+    for k in range(0,aux-1):
+        
+        
+        if (i==8 or i==10):
+            
+            ws_2 .cell(row = 43 + k, column = 9).number_format = '0.00%'
+            ws_2 .cell(row =43 + k, column = 9).border = Border(left=bd, top=bd, right=bd, bottom=bd)
+            ws_2 .cell(row = 43 + k, column = 9).alignment = Alignment(horizontal="center", vertical="center")
+            ws_2 .cell(row = 43 + k, column = 11).number_format = '0.00%'
+            ws_2 .cell(row = 43 + k, column = 11).border = Border(left=bd, top=bd, right=bd, bottom=bd)
+            ws_2 .cell(row = 43 + k, column = 11).alignment = Alignment(horizontal="center", vertical="center")
+        else:
+            
+            ws_2 .cell(row=43+k, column=i+1).style=Estilo
+            
+
+####################################################################################################################
+
+
+
+##########################################  IDIV ###########################################################
+pc=[]
+pv=[]
+aux=0
+aux_total=0
+
+for j in range(0,len(df_t)):
+    
+    
+    name = df_t.loc[j].at["Mercadoria"]
+    
+            
+    if ("MERCADO DE OPÇÕES DE VENDA DE ÍNDICE IDI" in name):
+                
+        ws_2 .cell(row = 56, column = 7).value = "MERCADO DE OPÇÕES DE VENDA DE ÍNDICE IDI"
+        ws_2 .cell(row = 57, column = 8).value = "Compra"
+        ws_2 .cell(row = 57, column = 9).value = "%"
+        ws_2 .cell(row = 57, column = 10).value = "Venda"
+        ws_2 .cell(row = 57, column = 11).value = "%"
+        ws_2 .cell(row = 58, column = 8).value = "Contratos"
+        ws_2 .cell(row = 58, column = 10).value = "Contratos"
+                
+        ws_2 .cell(row = 59 + aux, column = 8).value = df_t.loc[j].at["Compra"]
+        
+        pc.append(df_t.loc[j].at["Compra"])   # Armazena vetor de Compras para calculo da eporcentagem
+        
+        pv.append(df_t.loc[j].at["Venda"])    # Armazena vetor de Vendas para calculo da eporcentagem
+        
+        if df_t.loc[j].at["Tipo_Invest"]=="Total Geral":
+            
+                aux_total= df_t.loc[j].at["Compra"] #Armazena total para calculo da coluna percentual
+       
+        
+        ws_2 .cell(row = 59 + aux, column = 10).value = df_t.loc[j].at["Venda"] 
+        ws_2 .cell(row = 59 + aux, column = 7).value = df_t.loc[j].at["Tipo_Invest"] 
+        
+        aux=aux+1
+        
+    
+        
+        
+        
+########################### Estilo do quadro
+
+for i in range(6,11):
+        
+    for k in range(0,aux-1):
+        
+        if aux_total == 0:
+            
+            aux_total=1
+            
+        
+        ws_2 .cell(row = 59 + k, column = 9).value = pc[k]/aux_total
+        ws_2 .cell(row = 59 + k, column = 11).value = pv[k]/aux_total
+        
+        
+        
+    ws_2 .cell(row=56, column=i+1).style=Estilo5
+    ws_2 .cell(row=57, column=i+1).style=Estilo3
+    ws_2 .cell(row=58, column=i+1).style=Estilo3            
+    ws_2 .cell(row=58+aux, column=i+1).style=Estilo3             
+
+for i in range(6,11):
+        
+    for k in range(0,aux-1):
+        
+        
+        if (i==8 or i==10):
+            
+            ws_2 .cell(row = 59 + k, column = 9).number_format = '0.00%'
+            ws_2 .cell(row =59 + k, column = 9).border = Border(left=bd, top=bd, right=bd, bottom=bd)
+            ws_2 .cell(row = 59 + k, column = 9).alignment = Alignment(horizontal="center", vertical="center")
+            ws_2 .cell(row = 59 + k, column = 11).number_format = '0.00%'
+            ws_2 .cell(row = 59 + k, column = 11).border = Border(left=bd, top=bd, right=bd, bottom=bd)
+            ws_2 .cell(row = 59 + k, column = 11).alignment = Alignment(horizontal="center", vertical="center")
+        else:
+            
+            ws_2 .cell(row=59+k, column=i+1).style=Estilo
+            
+
+####################################################################################################################
+
+
+
+##########################################  WIN ###########################################################
+pc=[]
+pv=[]
+aux=0
+aux_total=0
+
+for j in range(0,len(df_t)):
+    
+    
+    name = df_t.loc[j].at["Mercadoria"]
+    
+            
+    if ("MERCADO FUTURO FRACIONÁRIO DE IBOVESPA MINI" in name):
+                
+        ws_2 .cell(row = 70, column = 7).value = "MERCADO FUTURO FRACIONÁRIO DE IBOVESPA MINI"
+        ws_2 .cell(row = 71, column = 8).value = "Compra"
+        ws_2 .cell(row = 71, column = 9).value = "%"
+        ws_2 .cell(row = 71, column = 10).value = "Venda"
+        ws_2 .cell(row = 71, column = 11).value = "%"
+        ws_2 .cell(row = 72, column = 8).value = "Contratos"
+        ws_2 .cell(row = 72, column = 10).value = "Contratos"
+                
+        ws_2 .cell(row = 73 + aux, column = 8).value = df_t.loc[j].at["Compra"]
+        
+        pc.append(df_t.loc[j].at["Compra"])   # Armazena vetor de Compras para calculo da eporcentagem
+        
+        pv.append(df_t.loc[j].at["Venda"])    # Armazena vetor de Vendas para calculo da eporcentagem
+        
+        if df_t.loc[j].at["Tipo_Invest"]=="Total Geral":
+            
+                aux_total= df_t.loc[j].at["Compra"] #Armazena total para calculo da coluna percentual
+       
+        
+        ws_2 .cell(row = 73 + aux, column = 10).value = df_t.loc[j].at["Venda"] 
+        ws_2 .cell(row = 73 + aux, column = 7).value = df_t.loc[j].at["Tipo_Invest"] 
+        
+        aux=aux+1
+        
+    
+        
+        
+        
+########################### Estilo do quadro
+
+for i in range(6,11):
+        
+    for k in range(0,aux-1):
+        
+        if aux_total == 0:
+            
+            aux_total=1
+            
+        
+        ws_2 .cell(row = 73 + k, column = 9).value = pc[k]/aux_total
+        ws_2 .cell(row = 73 + k, column = 11).value = pv[k]/aux_total
+        
+        
+        
+    ws_2 .cell(row=70, column=i+1).style=Estilo5
+    ws_2 .cell(row=71, column=i+1).style=Estilo3
+    ws_2 .cell(row=72, column=i+1).style=Estilo3            
+    ws_2 .cell(row=72+aux, column=i+1).style=Estilo3             
+
+for i in range(6,11):
+        
+    for k in range(0,aux-1):
+        
+        
+        if (i==8 or i==10):
+            
+            ws_2 .cell(row = 73 + k, column = 9).number_format = '0.00%'
+            ws_2 .cell(row =73 + k, column = 9).border = Border(left=bd, top=bd, right=bd, bottom=bd)
+            ws_2 .cell(row = 73 + k, column = 9).alignment = Alignment(horizontal="center", vertical="center")
+            ws_2 .cell(row = 73 + k, column = 11).number_format = '0.00%'
+            ws_2 .cell(row = 73 + k, column = 11).border = Border(left=bd, top=bd, right=bd, bottom=bd)
+            ws_2 .cell(row = 73 + k, column = 11).alignment = Alignment(horizontal="center", vertical="center")
+        else:
+            
+            ws_2 .cell(row=73+k, column=i+1).style=Estilo
+            
+
+####################################################################################################################
+
+
+##########################################  CPM ###########################################################
+pc=[]
+pv=[]
+aux=0
+aux_total=0
+
+for j in range(0,len(df_t)):
+    
+    
+    name = df_t.loc[j].at["Mercadoria"]
+    
+            
+    if ("MERCADO DE OPÇÕES DE COMPRA DE CPM" in name):
+                
+        ws_2 .cell(row = 84, column = 7).value = "MERCADO DE OPÇÕES DE COMPRA DE CPM"
+        ws_2 .cell(row = 85, column = 8).value = "Compra"
+        ws_2 .cell(row = 85, column = 9).value = "%"
+        ws_2 .cell(row = 85, column = 10).value = "Venda"
+        ws_2 .cell(row = 85, column = 11).value = "%"
+        ws_2 .cell(row = 86, column = 8).value = "Contratos"
+        ws_2 .cell(row = 86, column = 10).value = "Contratos"
+                
+        ws_2 .cell(row = 87 + aux, column = 8).value = df_t.loc[j].at["Compra"]
+        
+        pc.append(df_t.loc[j].at["Compra"])   # Armazena vetor de Compras para calculo da eporcentagem
+        
+        pv.append(df_t.loc[j].at["Venda"])    # Armazena vetor de Vendas para calculo da eporcentagem
+        
+        if df_t.loc[j].at["Tipo_Invest"]=="Total Geral":
+            
+                aux_total= df_t.loc[j].at["Compra"] #Armazena total para calculo da coluna percentual
+       
+        
+        ws_2 .cell(row = 87 + aux, column = 10).value = df_t.loc[j].at["Venda"] 
+        ws_2 .cell(row = 87 + aux, column = 7).value = df_t.loc[j].at["Tipo_Invest"] 
+        
+        aux=aux+1
+        
+    
+        
+        
+        
+########################### Estilo do quadro
+
+for i in range(6,11):
+        
+    for k in range(0,aux-1):
+        
+        if aux_total == 0:
+            
+            aux_total=1
+            
+        
+        ws_2 .cell(row = 87 + k, column = 9).value = pc[k]/aux_total
+        ws_2 .cell(row = 87 + k, column = 11).value = pv[k]/aux_total
+        
+        
+        
+    ws_2 .cell(row=84, column=i+1).style=Estilo5
+    ws_2 .cell(row=85, column=i+1).style=Estilo3
+    ws_2 .cell(row=86, column=i+1).style=Estilo3            
+    ws_2 .cell(row=86+aux, column=i+1).style=Estilo3             
+
+for i in range(6,11):
+        
+    for k in range(0,aux-1):
+        
+        
+        if (i==8 or i==10):
+            
+            ws_2 .cell(row = 87 + k, column = 9).number_format = '0.00%'
+            ws_2 .cell(row =87 + k, column = 9).border = Border(left=bd, top=bd, right=bd, bottom=bd)
+            ws_2 .cell(row = 87 + k, column = 9).alignment = Alignment(horizontal="center", vertical="center")
+            ws_2 .cell(row = 87 + k, column = 11).number_format = '0.00%'
+            ws_2 .cell(row = 87 + k, column = 11).border = Border(left=bd, top=bd, right=bd, bottom=bd)
+            ws_2 .cell(row = 87 + k, column = 11).alignment = Alignment(horizontal="center", vertical="center")
+        else:
+            
+            ws_2 .cell(row=87+k, column=i+1).style=Estilo
+            
+
+######################################################################################################################
+
+
+
+
+
+
+
+
+#####################################    Open Contracts - Players    #################################################
+
+
+
+
+################################################   DI   #####################################################
+
+    
+p=0
+q=0
+r=0
+aux=0
+aux_2=0
+aux_var_1=[]
+tipo_invest=[]
+
+
+di_plot_var = []  ################################## Var Aux para plotar gráfico de DI ##############################
+tipo_invest_di =[]  ##################################       tipo de investidor         ##################################
+di_pos =[]          #####################################  posição de DI para D-1           #########################
+
+
+for k in Datas_rel:
+
+    ws .cell(row = 23 - Datas_rel.index(k) , column = 1).value=k
+
+    ws .cell(row = 23 - Datas_rel.index(k) , column = 1).style=Estilo
+    
+    ws .cell(row = 23 - Datas_rel.index(k) , column = 1).style=Estilo4
+    
+    
+    
+    while  aux<len(df_t_2) and df_t_2.at[aux, "Data"]==k:
+            
+            if ("DI1" == df_t_2.at[aux, "Mercadoria"]):
+                r=r+1
+                aux=aux+1
+            else:
+                aux=aux+1
+            
+     
+    
+    ## Essa parte acima pega o número de linhas de DI1 com a variavel r para poder imprimir os vencimentos em ordem crescente
+
+    
+    while  p <len(df_t_2) and df_t_2.at[p, "Data"]==k:
+        
+
+        
+        if ("DI1" == df_t_2.at[p, "Mercadoria"] and Datas_rel.index(k)==0):
+            
+            aux_var_1.append(df_t_2.at[p+r-2*aux_2-1, "Compra"] - df_t_2.at[p+r-2*aux_2-1, "Venda"]) # calcula Var
+
+            
+            ws .cell(row = 7 , column = 2+q).value = re.sub(r'\s' , '\n ', df_t_2.at[p+r-2*aux_2-1, "Tipo_Invest"]) 
+            
+            ws .cell(row = 7 , column = 2+q).alignment = Alignment(horizontal="center", vertical="center", wrapText=True)
+            
+            ws .cell(row = 7 , column = 2+q).font= Font(size=10, b=True)
+
+            ws .cell(row = 23-Datas_rel.index(k) , column = 2+q).value = df_t_2.at[p+r-2*aux_2-1, "Compra"] - df_t_2.at[p+r-2*aux_2-1, "Venda"]
+            
+            #ws .cell(row = 23-Datas_rel.index(k) , column = 2+q).number_format = '$#,##0.00_-'
+            
+            ws .cell(row = 23-Datas_rel.index(k) , column = 2+q).style=Estilo
+            
+            tipo_invest.append(df_t_2.at[p+r-2*aux_2-1, "Tipo_Invest"])
+            tipo_invest_di.append(df_t_2.at[p+r-2*aux_2-1, "Tipo_Invest"])
+            
+            p=p+1
+            q=q+1
+            aux_2=aux_2+1
+                
+    
+               
+        elif ("DI1" == df_t_2.at[p, "Mercadoria"] and Datas_rel.index(k)>0):
+        
+            
+            for i in tipo_invest:
+                    
+                    
+                if df_t_2.at[p+r-2*aux_2-1, "Tipo_Invest"] in i:
+                        
+                        
+                    ws .cell(row = 23-Datas_rel.index(k) , column = 2+tipo_invest.index(i)).value = df_t_2.at[p+r-2*aux_2-1, "Compra"] - df_t_2.at[p+r-2*aux_2-1, "Venda"]
+
+                    ws .cell(row = 23-Datas_rel.index(k) , column = 2+tipo_invest.index(i)).style=Estilo
+                    
+                        
+                    if Datas_rel.index(k)==1:
+                
+                        di_pos.append(df_t_2.at[p+r-2*aux_2-1, "Compra"] - df_t_2.at[p+r-2*aux_2-1, "Venda"])  ##### Var pega posição de D-1 para o texto de DI ######
+                    
+                        di_plot_var.append(aux_var_1[tipo_invest.index(i)])
+                      
+                        aux_var_1[tipo_invest.index(i)] = aux_var_1[tipo_invest.index(i)] -  (df_t_2.at[p+r-2*aux_2-1, "Compra"] - df_t_2.at[p+r-2*aux_2-1, "Venda"])
+                
+                        
+                
+                       
+                
+                
+            p=p+1
+            q=q+1
+            aux_2=aux_2+1
+                 
+                 
+            
+        else:
+            
+            ws.cell(row=6,column =1).value="DI Players"
+        
+            
+            for i in range (1,q+2):
+                
+                ws.cell(row=6,column =i).style=Estilo2  # Estilo Titulo
+                ws.cell(row=8,column =i).style=Estilo3  # Estilo Datas
+                
+            
+            if Datas_rel.index(k)==14:
+            
+                for i in range(0,len(aux_var_1)):
+
+                    ws.cell(row= 24, column = 1).value = "Var"
+                    ws.cell(row= 24, column =i+2).value = aux_var_1[i]
+                    ws .cell(row = 24, column = i+2).style=Estilo
+                    ws .cell(row = 24, column = 1).style=Estilo4
+                    
+            
+          
+            
+            p=p+1
+            q=0
+            aux_2=0
+            
+           
+            
+            if (p==len(df_t_2)):
+                break
+        
+       
+       
+       
+    r=0  #Zera a variavel para a próxima data
+   
+
+ ################################################################################################################
+
+    
+    
+################################################   DOL   #####################################################
+
+    
+p=0
+q=0
+r=0
+aux=0
+aux_2=0
+aux_var_1=[]
+tipo_invest=[]
+
+
+for k in Datas_rel:
+    
+    
+    while  aux<len(df_t_2) and df_t_2.at[aux, "Data"]==k:
+            
+            if ("DOL" == df_t_2.at[aux, "Mercadoria"]):
+                r=r+1
+                aux=aux+1
+            else:
+                aux=aux+1
+             
+     
+    
+    ## Essa parte acima pega o número de linhas de DI1 com a variavel r para poder imprimir os vencimentos em ordem crescente
+
+    
+    while  p <len(df_t_2) and df_t_2.at[p, "Data"]==k:
+        
+
+        
+        if ("DOL" == df_t_2.at[p, "Mercadoria"] and Datas_rel.index(k)==0):
+            
+            aux_var_1.append(df_t_2.at[p+r-2*aux_2-1, "Compra"] - df_t_2.at[p+r-2*aux_2-1, "Venda"]) # calcula Var
+
+            
+            ws .cell(row = 7 , column = 2+q+12).value = re.sub(r'\s' , '\n ', df_t_2.at[p+r-2*aux_2-1, "Tipo_Invest"]) 
+            
+            ws .cell(row = 7 , column = 2+q+12).alignment = Alignment(horizontal="center", vertical="center", wrapText=True)
+            
+            ws .cell(row = 7 , column = 2+q+12).font= Font(size=10, b=True)
+
+            ws .cell(row = 23-Datas_rel.index(k) , column = 2+q +12).value = df_t_2.at[p+r-2*aux_2-1, "Compra"] - df_t_2.at[p+r-2*aux_2-1, "Venda"]
+            
+            #ws .cell(row = 23-Datas_rel.index(k) , column = 2+q).number_format = '$#,##0.00_-'
+            
+            ws .cell(row = 23-Datas_rel.index(k) , column = 2+q+12).style=Estilo
+            
+            tipo_invest.append(df_t_2.at[p+r-2*aux_2-1, "Tipo_Invest"])
+            
+            p=p+1
+            q=q+1
+            aux_2=aux_2+1
+                
+    
+               
+        elif ("DOL" == df_t_2.at[p, "Mercadoria"] and Datas_rel.index(k)>0):
+        
+            
+            for i in tipo_invest:
+                    
+                    
+                if df_t_2.at[p+r-2*aux_2-1, "Tipo_Invest"] == i:
+                        
+                        
+                    ws .cell(row = 23-Datas_rel.index(k) , column = 2+tipo_invest.index(i)+12).value = df_t_2.at[p+r-2*aux_2-1, "Compra"] - df_t_2.at[p+r-2*aux_2-1, "Venda"]
+
+                    ws .cell(row = 23-Datas_rel.index(k) , column = 2+tipo_invest.index(i)+12).style=Estilo
+                    
+                        
+                    if Datas_rel.index(k)==1:
+                
+                    
+                        aux_var_1[tipo_invest.index(i)] = aux_var_1[tipo_invest.index(i)] -  (df_t_2.at[p+r-2*aux_2-1, "Compra"] - df_t_2.at[p+r-2*aux_2-1, "Venda"])
+                
+                
+                
+            p=p+1
+            q=q+1
+            aux_2=aux_2+1
+                 
+            
+        else:
+            
+            ws.cell(row=6,column =14).value="DOL Players"
+        
+            
+            for i in range (1,q+2):
+                
+                ws.cell(row=6,column =i+12).style=Estilo2  # Estilo Titulo
+                ws.cell(row=8,column =i+12).style=Estilo3  # Estilo Datas
+                
+            
+            if Datas_rel.index(k)==14:
+            
+                for i in range(0,len(aux_var_1)):
+
+                    
+                    ws.cell(row= 24, column =i+2+12).value = aux_var_1[i]
+                    ws .cell(row = 24, column = i+2+12).style=Estilo
+               
+                    
+            
+          
+            
+            p=p+1
+            q=0
+            aux_2=0
+            
+           
+            
+            if (p==len(df_t_2)):
+                break
+        
+       
+       
+       
+    r=0  #Zera a variavel para a próxima data
+   
+
+ ################################################################################################################
+
+    
+    
+################################################   WDO   #####################################################
+
+    
+p=0
+q=0
+r=0
+aux=0
+aux_2=0
+aux_var_1=[]
+tipo_invest=[]
+
+
+for k in Datas_rel:
+    
+    
+    while  aux<len(df_t_2) and df_t_2.at[aux, "Data"]==k:
+            
+            if ("WDO" == df_t_2.at[aux, "Mercadoria"]):
+                r=r+1
+                aux=aux+1
+            else:
+                aux=aux+1
+             
+     
+    
+    ## Essa parte acima pega o número de linhas de DI1 com a variavel r para poder imprimir os vencimentos em ordem crescente
+
+    
+    while  p <len(df_t_2) and df_t_2.at[p, "Data"]==k:
+        
+
+        
+        if ("WDO" == df_t_2.at[p, "Mercadoria"] and Datas_rel.index(k)==0):
+            
+            aux_var_1.append(round((df_t_2.at[p+r-2*aux_2-1, "Compra"] - df_t_2.at[p+r-2*aux_2-1, "Venda"])/5)) # calcula Var
+
+            
+            ws .cell(row = 7 , column = 2+q+24).value = re.sub(r'\s' , '\n ', df_t_2.at[p+r-2*aux_2-1, "Tipo_Invest"]) 
+            
+            ws .cell(row = 7 , column = 2+q+24).alignment = Alignment(horizontal="center", vertical="center", wrapText=True)
+            
+            ws .cell(row = 7 , column = 2+q+24).font= Font(size=10, b=True)
+
+            ws .cell(row = 23-Datas_rel.index(k) , column = 2+q +24).value = round((df_t_2.at[p+r-2*aux_2-1, "Compra"] - df_t_2.at[p+r-2*aux_2-1, "Venda"])/5)
+            
+            #ws .cell(row = 23-Datas_rel.index(k) , column = 2+q).number_format = '$#,##0.00_-'
+            
+            ws .cell(row = 23-Datas_rel.index(k) , column = 2+q+24).style=Estilo
+            
+            tipo_invest.append(df_t_2.at[p+r-2*aux_2-1, "Tipo_Invest"])
+            
+            p=p+1
+            q=q+1
+            aux_2=aux_2+1
+                
+    
+               
+        elif ("WDO" == df_t_2.at[p, "Mercadoria"] and Datas_rel.index(k)>0):
+        
+            
+            for i in tipo_invest:
+                    
+                    
+                if df_t_2.at[p+r-2*aux_2-1, "Tipo_Invest"] == i:
+                        
+                        
+                    ws .cell(row = 23-Datas_rel.index(k) , column = 2+tipo_invest.index(i)+24).value = round((df_t_2.at[p+r-2*aux_2-1, "Compra"] - df_t_2.at[p+r-2*aux_2-1, "Venda"])/5)
+
+                    ws .cell(row = 23-Datas_rel.index(k) , column = 2+tipo_invest.index(i)+24).style=Estilo
+                    
+                        
+                    if Datas_rel.index(k)==1:
+                
+                    
+                        aux_var_1[tipo_invest.index(i)] = aux_var_1[tipo_invest.index(i)] -  round((df_t_2.at[p+r-2*aux_2-1, "Compra"] - df_t_2.at[p+r-2*aux_2-1, "Venda"])/5)
+           
+        
+            p=p+1
+            q=q+1
+            aux_2=aux_2+1
+                
+            
+        else:
+            
+            ws.cell(row=5,column =26).value="cts/5 para equivaler ao DOL"
+            
+            ws.cell(row=6,column =26).value="WDO Players"
+        
+            
+            for i in range (1,q+2):
+                
+                ws.cell(row=6,column =i+24).style=Estilo2  # Estilo Titulo
+                ws.cell(row=8,column =i+24).style=Estilo3  # Estilo Datas
+                
+            
+            if Datas_rel.index(k)==14:
+            
+                for i in range(0,len(aux_var_1)):
+
+                    
+                    ws.cell(row= 24, column =i+2+24).value = aux_var_1[i]
+                    ws .cell(row = 24, column = i+2+24).style=Estilo
+               
+                    
+            
+          
+            
+            p=p+1
+            q=0
+            aux_2=0
+            
+           
+            
+            if (p==len(df_t_2)):
+                break
+        
+       
+       
+       
+    r=0  #Zera a variavel para a próxima data
+   
+
+ ################################################################################################################
+
+    
+    
+################################################  DDI   #####################################################
+
+    
+p=0
+q=0
+r=0
+aux=0
+aux_2=0
+aux_var_1=[]
+tipo_invest=[]
+
+
+for k in Datas_rel:
+    
+    
+    while  aux<len(df_t_2) and df_t_2.at[aux, "Data"]==k:
+            
+            if ("DDI" == df_t_2.at[aux, "Mercadoria"]):
+                r=r+1
+                aux=aux+1
+            else:
+                aux=aux+1
+             
+     
+    
+    ## Essa parte acima pega o número de linhas de DI1 com a variavel r para poder imprimir os vencimentos em ordem crescente
+
+    
+    while  p <len(df_t_2) and df_t_2.at[p, "Data"]==k:
+        
+
+        
+        if ("DDI" == df_t_2.at[p, "Mercadoria"] and Datas_rel.index(k)==0):
+            
+            aux_var_1.append(df_t_2.at[p+r-2*aux_2-1, "Compra"] - df_t_2.at[p+r-2*aux_2-1, "Venda"]) # calcula Var
+
+            
+            ws .cell(row = 7 , column = 2+q+36).value = re.sub(r'\s' , '\n ', df_t_2.at[p+r-2*aux_2-1, "Tipo_Invest"]) 
+            
+            ws .cell(row = 7 , column = 2+q+36).alignment = Alignment(horizontal="center", vertical="center", wrapText=True)
+            
+            ws .cell(row = 7 , column = 2+q+36).font= Font(size=10, b=True)
+
+            ws .cell(row = 23-Datas_rel.index(k) , column = 2+q+36).value = df_t_2.at[p+r-2*aux_2-1, "Compra"] - df_t_2.at[p+r-2*aux_2-1, "Venda"]
+            
+            #ws .cell(row = 23-Datas_rel.index(k) , column = 2+q).number_format = '$#,##0.00_-'
+            
+            ws .cell(row = 23-Datas_rel.index(k) , column = 2+q+36).style=Estilo
+            
+            tipo_invest.append(df_t_2.at[p+r-2*aux_2-1, "Tipo_Invest"])
+            
+            
+            p=p+1
+            q=q+1
+            aux_2=aux_2+1
+                
+    
+               
+        elif ("DDI" == df_t_2.at[p, "Mercadoria"] and Datas_rel.index(k)>0):
+        
+            
+            for i in tipo_invest:
+                    
+                    
+                if df_t_2.at[p+r-2*aux_2-1, "Tipo_Invest"] == i:
+                        
+                        
+                    ws .cell(row = 23-Datas_rel.index(k) , column = 2+tipo_invest.index(i)+36).value = df_t_2.at[p+r-2*aux_2-1, "Compra"] - df_t_2.at[p+r-2*aux_2-1, "Venda"]
+
+                    ws .cell(row = 23-Datas_rel.index(k) , column = 2+tipo_invest.index(i)+36).style=Estilo
+                    
+                        
+                    if Datas_rel.index(k)==1:
+                
+                    
+                        aux_var_1[tipo_invest.index(i)] = aux_var_1[tipo_invest.index(i)] -  (df_t_2.at[p+r-2*aux_2-1, "Compra"] - df_t_2.at[p+r-2*aux_2-1, "Venda"])
+                
+                
+            p=p+1
+            q=q+1
+            aux_2=aux_2+1
+            
+            
+        else:
+            
+            ws.cell(row=6,column =38).value="DDI Players"
+        
+            
+            for i in range (1,q+2):
+                
+                ws.cell(row=6,column =i+36).style=Estilo2  # Estilo Titulo
+                ws.cell(row=8,column =i+36).style=Estilo3  # Estilo Datas
+                
+            
+            if Datas_rel.index(k)==14:
+            
+                for i in range(0,len(aux_var_1)):
+
+                    
+                    ws.cell(row= 24, column =i+2+36).value = aux_var_1[i]
+                    ws .cell(row = 24, column = i+2+36).style=Estilo
+               
+                    
+            
+          
+            
+            p=p+1
+            q=0
+            aux_2=0
+            
+           
+            
+            if (p==len(df_t_2)):
+                break
+        
+       
+       
+       
+    r=0  #Zera a variavel para a próxima data
+   
+
+ ################################################################################################################
+
+    
+    
+################################################  SCS   #####################################################
+
+    
+p=0
+q=0
+r=0
+aux=0
+aux_2=0
+aux_var_1=[]
+tipo_invest=[]
+
+
+for k in Datas_rel:
+    
+    
+    while  aux<len(df_t_2) and df_t_2.at[aux, "Data"]==k:
+            
+            if ("SCS" == df_t_2.at[aux, "Mercadoria"]):
+                r=r+1
+                aux=aux+1
+            else:
+                aux=aux+1
+             
+     
+    
+    ## Essa parte acima pega o número de linhas de DI1 com a variavel r para poder imprimir os vencimentos em ordem crescente
+
+    
+    while  p <len(df_t_2) and df_t_2.at[p, "Data"]==k:
+        
+
+        
+        if ("SCS" == df_t_2.at[p, "Mercadoria"] and Datas_rel.index(k)==0):
+            
+            aux_var_1.append(df_t_2.at[p+r-2*aux_2-1, "Compra"] - df_t_2.at[p+r-2*aux_2-1, "Venda"]) # calcula Var
+
+            
+            ws .cell(row = 7 , column = 2+q+48).value = re.sub(r'\s' , '\n ', df_t_2.at[p+r-2*aux_2-1, "Tipo_Invest"]) 
+            
+            ws .cell(row = 7 , column = 2+q+48).alignment = Alignment(horizontal="center", vertical="center", wrapText=True)
+            
+            ws .cell(row = 7 , column = 2+q+48).font= Font(size=10, b=True)
+
+            ws .cell(row = 23-Datas_rel.index(k) , column = 2+q+48).value = df_t_2.at[p+r-2*aux_2-1, "Compra"] - df_t_2.at[p+r-2*aux_2-1, "Venda"]
+            
+            #ws .cell(row = 23-Datas_rel.index(k) , column = 2+q).number_format = '$#,##0.00_-'
+            
+            ws .cell(row = 23-Datas_rel.index(k) , column = 2+q+48).style=Estilo
+            
+            tipo_invest.append(df_t_2.at[p+r-2*aux_2-1, "Tipo_Invest"])
+            
+            
+            p=p+1
+            q=q+1
+            aux_2=aux_2+1
+                
+    
+               
+        elif ("SCS" == df_t_2.at[p, "Mercadoria"] and Datas_rel.index(k)>0):
+        
+            
+            for i in tipo_invest:
+                    
+                    
+                if df_t_2.at[p+r-2*aux_2-1, "Tipo_Invest"] == i:
+                        
+                        
+                    ws .cell(row = 23-Datas_rel.index(k) , column = 2+tipo_invest.index(i)+48).value = df_t_2.at[p+r-2*aux_2-1, "Compra"] - df_t_2.at[p+r-2*aux_2-1, "Venda"]
+
+                    ws .cell(row = 23-Datas_rel.index(k) , column = 2+tipo_invest.index(i)+48).style=Estilo
+                    
+                        
+                    if Datas_rel.index(k)==1:
+                
+                    
+                        aux_var_1[tipo_invest.index(i)] = aux_var_1[tipo_invest.index(i)] -  (df_t_2.at[p+r-2*aux_2-1, "Compra"] - df_t_2.at[p+r-2*aux_2-1, "Venda"])
+                
+                
+            p=p+1
+            q=q+1
+            aux_2=aux_2+1
+                 
+            
+        else:
+            
+            ws.cell(row=6,column =50).value="Swap Cambial"
+        
+            
+            for i in range (1,q+5):
+                
+                ws.cell(row=6,column =i+48).style=Estilo2  # Estilo Titulo
+                ws.cell(row=8,column =i+48).style=Estilo3  # Estilo Datas
+                
+            
+            if Datas_rel.index(k)==14:
+            
+                for i in range(0,len(aux_var_1)):
+
+                    
+                    ws.cell(row= 24, column =i+2+48).value = aux_var_1[i]
+                    ws .cell(row = 24, column = i+2+48).style=Estilo
+               
+                    
+            
+          
+            
+            p=p+1
+            q=0
+            aux_2=0
+            
+           
+            
+            if (p==len(df_t_2)):
+                break
+        
+       
+       
+       
+    r=0  #Zera a variavel para a próxima data
+   
+
+ ################################################################################################################
+
+    
+    
+################################################  IDIC   #####################################################
+
+    
+p=0
+q=0
+r=0
+aux=0
+aux_2=0
+aux_var_1=[]
+tipo_invest=[]
+
+
+for k in Datas_rel:
+    
+    
+    while  aux<len(df_t_2) and df_t_2.at[aux, "Data"]==k:
+            
+            if ("IDIC" == df_t_2.at[aux, "Mercadoria"]):
+                r=r+1
+                aux=aux+1
+            else:
+                aux=aux+1
+             
+     
+    
+    ## Essa parte acima pega o número de linhas de DI1 com a variavel r para poder imprimir os vencimentos em ordem crescente
+
+    
+    while  p <len(df_t_2) and df_t_2.at[p, "Data"]==k:
+        
+
+        
+        if ("IDIC" == df_t_2.at[p, "Mercadoria"] and Datas_rel.index(k)==0):
+            
+            aux_var_1.append(df_t_2.at[p+r-2*aux_2-1, "Compra"] - df_t_2.at[p+r-2*aux_2-1, "Venda"]) # calcula Var
+
+            
+            ws .cell(row = 7 , column = 2+q+60).value = re.sub(r'\s' , '\n ', df_t_2.at[p+r-2*aux_2-1, "Tipo_Invest"]) 
+            
+            ws .cell(row = 7 , column = 2+q+60).alignment = Alignment(horizontal="center", vertical="center", wrapText=True)
+            
+            ws .cell(row = 7 , column = 2+q+60).font= Font(size=10, b=True)
+
+            ws .cell(row = 23-Datas_rel.index(k) , column = 2+q+60).value = df_t_2.at[p+r-2*aux_2-1, "Compra"] - df_t_2.at[p+r-2*aux_2-1, "Venda"]
+            
+            #ws .cell(row = 23-Datas_rel.index(k) , column = 2+q).number_format = '$#,##0.00_-'
+            
+            ws .cell(row = 23-Datas_rel.index(k) , column = 2+q+60).style=Estilo
+            
+            tipo_invest.append(df_t_2.at[p+r-2*aux_2-1, "Tipo_Invest"])
+           
+            
+            p=p+1
+            q=q+1
+            aux_2=aux_2+1
+                
+    
+               
+        elif ("IDIC" == df_t_2.at[p, "Mercadoria"] and Datas_rel.index(k)>0):
+        
+            for i in tipo_invest:
+                    
+                    
+                if df_t_2.at[p+r-2*aux_2-1, "Tipo_Invest"] == i:
+                        
+                        
+                    ws .cell(row = 23-Datas_rel.index(k) , column = 2+tipo_invest.index(i)+60).value = df_t_2.at[p+r-2*aux_2-1, "Compra"] - df_t_2.at[p+r-2*aux_2-1, "Venda"]
+
+                    ws .cell(row = 23-Datas_rel.index(k) , column = 2+tipo_invest.index(i)+60).style=Estilo
+                    
+                        
+                    if Datas_rel.index(k)==1:
+                
+                    
+                       aux_var_1[tipo_invest.index(i)] = aux_var_1[tipo_invest.index(i)] -  (df_t_2.at[p+r-2*aux_2-1, "Compra"] - df_t_2.at[p+r-2*aux_2-1, "Venda"])
+                
+                
+                
+            p=p+1
+            q=q+1
+            aux_2=aux_2+1
+                
+           
+            
+        else:
+            
+            ws.cell(row=6,column =62).value="IDI Call"
+        
+            
+            for i in range (1,q+5):
+                
+                ws.cell(row=6,column =i+60).style=Estilo2  # Estilo Titulo
+                ws.cell(row=8,column =i+60).style=Estilo3  # Estilo Datas
+                
+            
+            if Datas_rel.index(k)==14:
+            
+                for i in range(0,len(aux_var_1)):
+
+                    
+                    ws.cell(row= 24, column =i+2+60).value = aux_var_1[i]
+                    ws .cell(row = 24, column = i+2+60).style=Estilo
+               
+                    
+            
+          
+            
+            p=p+1
+            q=0
+            aux_2=0
+            
+           
+            
+            if (p==len(df_t_2)):
+                break
+        
+       
+       
+       
+    r=0  #Zera a variavel para a próxima data
+   
+
+ ################################################################################################################
+
+    
+    
+################################################  IDIV   #####################################################
+
+    
+p=0
+q=0
+r=0
+aux=0
+aux_2=0
+aux_var_1=[]
+tipo_invest=[]
+
+
+for k in Datas_rel:
+    
+    
+    while  aux<len(df_t_2) and df_t_2.at[aux, "Data"]==k:
+            
+            if ("IDIV" == df_t_2.at[aux, "Mercadoria"]):
+                r=r+1
+                aux=aux+1
+            else:
+                aux=aux+1
+             
+     
+    
+    ## Essa parte acima pega o número de linhas de DI1 com a variavel r para poder imprimir os vencimentos em ordem crescente
+
+    
+    while  p <len(df_t_2) and df_t_2.at[p, "Data"]==k:
+        
+
+        
+        if ("IDIV" == df_t_2.at[p, "Mercadoria"] and Datas_rel.index(k)==0):
+            
+            aux_var_1.append(df_t_2.at[p+r-2*aux_2-1, "Compra"] - df_t_2.at[p+r-2*aux_2-1, "Venda"]) # calcula Var
+
+            
+            ws .cell(row = 7 , column = 2+q+72).value = re.sub(r'\s' , '\n ', df_t_2.at[p+r-2*aux_2-1, "Tipo_Invest"]) 
+            
+            ws .cell(row = 7 , column = 2+q+72).alignment = Alignment(horizontal="center", vertical="center", wrapText=True)
+            
+            ws .cell(row = 7 , column = 2+q+72).font= Font(size=10, b=True)
+
+            ws .cell(row = 23-Datas_rel.index(k) , column = 2+q+72).value = df_t_2.at[p+r-2*aux_2-1, "Compra"] - df_t_2.at[p+r-2*aux_2-1, "Venda"]
+            
+            #ws .cell(row = 23-Datas_rel.index(k) , column = 2+q).number_format = '$#,##0.00_-'
+            
+            ws .cell(row = 23-Datas_rel.index(k) , column = 2+q+72).style=Estilo
+            
+            tipo_invest.append(df_t_2.at[p+r-2*aux_2-1, "Tipo_Invest"])
+            
+            
+            p=p+1
+            q=q+1
+            aux_2=aux_2+1
+                
+    
+               
+        elif ("IDIV" == df_t_2.at[p, "Mercadoria"] and Datas_rel.index(k)>0):
+        
+            
+            for i in tipo_invest:
+                    
+                    
+                if df_t_2.at[p+r-2*aux_2-1, "Tipo_Invest"] == i:
+                        
+                        
+                    ws .cell(row = 23-Datas_rel.index(k) , column = 2+tipo_invest.index(i)+72).value = df_t_2.at[p+r-2*aux_2-1, "Compra"] - df_t_2.at[p+r-2*aux_2-1, "Venda"]
+
+                    ws .cell(row = 23-Datas_rel.index(k) , column = 2+tipo_invest.index(i)+72).style=Estilo
+                    
+                        
+                    if Datas_rel.index(k)==1:
+                
+                    
+                        aux_var_1[tipo_invest.index(i)] = aux_var_1[tipo_invest.index(i)] -  (df_t_2.at[p+r-2*aux_2-1, "Compra"] - df_t_2.at[p+r-2*aux_2-1, "Venda"])
+                
+                
+            p=p+1
+            q=q+1
+            aux_2=aux_2+1
+            
+        else:
+            
+            ws.cell(row=6,column =74).value="IDI Put"
+        
+            
+            for i in range (1,q+3):
+                
+                ws.cell(row=6,column =i+72).style=Estilo2  # Estilo Titulo
+                ws.cell(row=8,column =i+72).style=Estilo3  # Estilo Datas
+                
+            
+            if Datas_rel.index(k)==14:
+            
+                for i in range(0,len(aux_var_1)):
+
+                    
+                    ws.cell(row= 24, column =i+2+72).value = aux_var_1[i]
+                    ws .cell(row = 24, column = i+2+72).style=Estilo
+               
+                    
+            
+          
+            
+            p=p+1
+            q=0
+            aux_2=0
+            
+           
+            
+            if (p==len(df_t_2)):
+                break
+        
+       
+       
+       
+    r=0  #Zera a variavel para a próxima data
+   
+
+ #############################################################################################################
+
+################################################  IBOV   #####################################################
+
+    
+p=0
+q=0
+r=0
+aux=0
+aux_2=0
+aux_var_1=[]
+tipo_invest=[]
+
+
+for k in Datas_rel:
+    
+    
+    while  aux<len(df_t_2) and df_t_2.at[aux, "Data"]==k:
+            
+            if ("IBOV" == df_t_2.at[aux, "Mercadoria"]):
+                r=r+1
+                aux=aux+1
+            else:
+                aux=aux+1
+             
+     
+    
+    ## Essa parte acima pega o número de linhas de DI1 com a variavel r para poder imprimir os vencimentos em ordem crescente
+
+    
+    while  p <len(df_t_2) and df_t_2.at[p, "Data"]==k:
+        
+
+        
+        if ("IBOV" == df_t_2.at[p, "Mercadoria"] and Datas_rel.index(k)==0):
+            
+            aux_var_1.append(df_t_2.at[p+r-2*aux_2-1, "Compra"] - df_t_2.at[p+r-2*aux_2-1, "Venda"]) # calcula Var
+
+            
+            ws .cell(row = 7 , column = 2+q+84).value = re.sub(r'\s' , '\n ', df_t_2.at[p+r-2*aux_2-1, "Tipo_Invest"]) 
+            
+            ws .cell(row = 7 , column = 2+q+84).alignment = Alignment(horizontal="center", vertical="center", wrapText=True)
+            
+            ws .cell(row = 7 , column = 2+q+84).font= Font(size=10, b=True)
+
+            ws .cell(row = 23-Datas_rel.index(k) , column = 2+q+84).value = df_t_2.at[p+r-2*aux_2-1, "Compra"] - df_t_2.at[p+r-2*aux_2-1, "Venda"]
+            
+            #ws .cell(row = 23-Datas_rel.index(k) , column = 2+q).number_format = '$#,##0.00_-'
+            
+            ws .cell(row = 23-Datas_rel.index(k) , column = 2+q+84).style=Estilo
+            
+            tipo_invest.append(df_t_2.at[p+r-2*aux_2-1, "Tipo_Invest"])
+            
+            
+            p=p+1
+            q=q+1
+            aux_2=aux_2+1
+                
+    
+               
+        elif ("IBOV" == df_t_2.at[p, "Mercadoria"] and Datas_rel.index(k)>0):
+        
+         
+            for i in tipo_invest:
+                    
+                    
+                if df_t_2.at[p+r-2*aux_2-1, "Tipo_Invest"] == i:
+                        
+                        
+                    ws .cell(row = 23-Datas_rel.index(k) , column = 2+tipo_invest.index(i)+84).value = df_t_2.at[p+r-2*aux_2-1, "Compra"] - df_t_2.at[p+r-2*aux_2-1, "Venda"]
+
+                    ws .cell(row = 23-Datas_rel.index(k) , column = 2+tipo_invest.index(i)+84).style=Estilo
+                    
+                        
+                    if Datas_rel.index(k)==1:
+                
+                    
+                        aux_var_1[tipo_invest.index(i)] = aux_var_1[tipo_invest.index(i)] -  (df_t_2.at[p+r-2*aux_2-1, "Compra"] - df_t_2.at[p+r-2*aux_2-1, "Venda"])
+                
+                
+                
+            p=p+1
+            q=q+1
+            aux_2=aux_2+1
+                 
+            
+        else:
+            
+            ws.cell(row=6,column =86).value="IBOV Players"
+        
+            
+            for i in range (1,q+3):
+                
+                ws.cell(row=6,column =i+84).style=Estilo2  # Estilo Titulo
+                ws.cell(row=8,column =i+84).style=Estilo3  # Estilo Datas
+                
+            
+            if Datas_rel.index(k)==14:
+            
+                for i in range(0,len(aux_var_1)):
+
+                    
+                    ws.cell(row= 24, column =i+2+84).value = aux_var_1[i]
+                    ws .cell(row = 24, column = i+2+84).style=Estilo
+               
+                    
+            
+          
+            
+            p=p+1
+            q=0
+            aux_2=0
+            
+           
+            
+            if (p==len(df_t_2)):
+                break
+        
+       
+       
+       
+    r=0  #Zera a variavel para a próxima data
+   
+
+ #############################################################################################################
+
+################################################  WIN   #####################################################
+
+    
+p=0
+q=0
+r=0
+aux=0
+aux_2=0
+aux_var_1=[]
+tipo_invest = []
+
+
+
+for k in Datas_rel:
+    
+    
+    while  aux<len(df_t_2) and df_t_2.at[aux, "Data"]==k:
+            
+            if ("WIN" == df_t_2.at[aux, "Mercadoria"]):
+                r=r+1
+                aux=aux+1
+            else:
+                aux=aux+1
+             
+     
+    
+    ## Essa parte acima pega o número de linhas de DI1 com a variavel r para poder imprimir os vencimentos em ordem crescente
+
+    
+    while  p <len(df_t_2) and df_t_2.at[p, "Data"]==k:
+        
+
+        
+        if ("WIN" == df_t_2.at[p, "Mercadoria"] and Datas_rel.index(k)==0):
+            
+            aux_var_1.append(df_t_2.at[p+r-2*aux_2-1, "Compra"] - df_t_2.at[p+r-2*aux_2-1, "Venda"]) # calcula Var
+
+            
+            ws .cell(row = 7 , column = 2+q+96).value = re.sub(r'\s' , '\n ', df_t_2.at[p+r-2*aux_2-1, "Tipo_Invest"]) 
+            
+            ws .cell(row = 7 , column = 2+q+96).alignment = Alignment(horizontal="center", vertical="center", wrapText=True)
+            
+            ws .cell(row = 7 , column = 2+q+96).font= Font(size=10, b=True)
+
+            ws .cell(row = 23-Datas_rel.index(k) , column = 2+q+96).value = df_t_2.at[p+r-2*aux_2-1, "Compra"] - df_t_2.at[p+r-2*aux_2-1, "Venda"]
+            
+            #ws .cell(row = 23-Datas_rel.index(k) , column = 2+q).number_format = '$#,##0.00_-'
+            
+            ws .cell(row = 23-Datas_rel.index(k) , column = 2+q+96).style=Estilo
+            
+            tipo_invest.append(df_t_2.at[p+r-2*aux_2-1, "Tipo_Invest"])
+            
+            p=p+1
+            q=q+1
+            aux_2=aux_2+1
+                
+    
+               
+        elif ("WIN" == df_t_2.at[p, "Mercadoria"] and Datas_rel.index(k)>0):
+        
+            
+            for i in tipo_invest:
+                
+                if  df_t_2.at[p+r-2*aux_2-1, "Tipo_Invest"] == i:
+                    
+                
+                    ws .cell(row = 23-Datas_rel.index(k) , column = 2+tipo_invest.index(i)+96).value = df_t_2.at[p+r-2*aux_2-1, "Compra"] - df_t_2.at[p+r-2*aux_2-1, "Venda"]
+
+                    ws .cell(row = 23-Datas_rel.index(k) , column = 2+tipo_invest.index(i)+96).style=Estilo
+                    
+                        
+                    if Datas_rel.index(k)==1:
+                
+                    
+                        aux_var_1[tipo_invest.index(i)] = aux_var_1[tipo_invest.index(i)] -  (df_t_2.at[p+r-2*aux_2-1, "Compra"] - df_t_2.at[p+r-2*aux_2-1, "Venda"])
+             
+            
+            p=p+1
+            q=q+1
+            aux_2=aux_2+1
+                 
+            
+        else:
+            
+            ws.cell(row=6,column =98).value="WIN Players"
+            
+            
+            
+            for i in range (1,q+2):
+                
+                ws.cell(row=6,column =i+96).style=Estilo2  # Estilo Titulo
+                ws.cell(row=8,column =i+96).style=Estilo3  # Estilo Datas
+                
+            
+            if Datas_rel.index(k)==14:
+            
+                for i in range(0,len(aux_var_1)):
+
+                    
+                    ws.cell(row= 24, column =i+2+96).value = aux_var_1[i]
+                    ws .cell(row = 24, column = i+2+96).style=Estilo
+               
+                    
+            
+          
+            
+            p=p+1
+            q=0
+            aux_2=0
+            
+           
+            
+            if (p==len(df_t_2)):
+                break
+        
+       
+       
+       
+    r=0  #Zera a variavel para a próxima data              
+               
+
+#############################################################################################################
+
+################################################  DAP   #####################################################
+
+    
+p=0
+q=0
+r=0
+aux=0
+aux_2=0
+aux_var_1=[]
+tipo_invest = []
+
+
+for k in Datas_rel:
+    
+    
+    while  aux<len(df_t_2) and df_t_2.at[aux, "Data"]==k:
+            
+            if ("DAP" == df_t_2.at[aux, "Mercadoria"]):
+                r=r+1
+                aux=aux+1
+            else:
+                aux=aux+1
+             
+     
+    
+    ## Essa parte acima pega o número de linhas de DI1 com a variavel r para poder imprimir os vencimentos em ordem crescente
+
+    
+    while  p <len(df_t_2) and df_t_2.at[p, "Data"]==k:
+        
+
+        
+        if ("DAP" == df_t_2.at[p, "Mercadoria"] and Datas_rel.index(k)==0):
+            
+            aux_var_1.append(df_t_2.at[p+r-2*aux_2-1, "Compra"] - df_t_2.at[p+r-2*aux_2-1, "Venda"]) # calcula Var
+
+            
+            ws .cell(row = 7 , column = 2+q+108).value = re.sub(r'\s' , '\n ', df_t_2.at[p+r-2*aux_2-1, "Tipo_Invest"]) 
+            
+            ws .cell(row = 7 , column = 2+q+108).alignment = Alignment(horizontal="center", vertical="center", wrapText=True)
+            
+            ws .cell(row = 7 , column = 2+q+108).font= Font(size=10, b=True)
+
+            ws .cell(row = 23-Datas_rel.index(k) , column = 2+q+108).value = df_t_2.at[p+r-2*aux_2-1, "Compra"] - df_t_2.at[p+r-2*aux_2-1, "Venda"]
+            
+            #ws .cell(row = 23-Datas_rel.index(k) , column = 2+q).number_format = '$#,##0.00_-'
+            
+            ws .cell(row = 23-Datas_rel.index(k) , column = 2+q+108).style=Estilo
+            
+            tipo_invest.append(df_t_2.at[p+r-2*aux_2-1, "Tipo_Invest"])
+            
+            p=p+1
+            q=q+1
+            aux_2=aux_2+1
+                
+    
+               
+        elif ("DAP" == df_t_2.at[p, "Mercadoria"] and Datas_rel.index(k)>0):
+            
+            
+            for i in tipo_invest:
+                    
+                    
+                if df_t_2.at[p+r-2*aux_2-1, "Tipo_Invest"] == i:
+                        
+                        
+                    ws .cell(row = 23-Datas_rel.index(k) , column = 2+tipo_invest.index(i)+108).value = df_t_2.at[p+r-2*aux_2-1, "Compra"] - df_t_2.at[p+r-2*aux_2-1, "Venda"]
+
+                    ws .cell(row = 23-Datas_rel.index(k) , column = 2+tipo_invest.index(i)+108).style=Estilo
+                    
+                        
+                    if Datas_rel.index(k)==1:
+                
+                    
+                        aux_var_1[tipo_invest.index(i)] = aux_var_1[tipo_invest.index(i)] -  (df_t_2.at[p+r-2*aux_2-1, "Compra"] - df_t_2.at[p+r-2*aux_2-1, "Venda"])
+
+            
+            p=p+1
+            q=q+1
+            aux_2=aux_2+1
+        
+            
+                
+                
+            
+        else:
+            
+            ws.cell(row=6,column =110).value="DAP Players"
+            
+            
+            for i in range (1,q+2):
+                
+                ws.cell(row=6,column =i+108).style=Estilo2  # Estilo Titulo
+                ws.cell(row=8,column =i+108).style=Estilo3  # Estilo Datas
+                
+            
+            if Datas_rel.index(k)==14:
+            
+                for i in range(0,len(aux_var_1)):
+
+                    
+                    ws.cell(row= 24, column =i+2+108).value = aux_var_1[i]
+                    ws .cell(row = 24, column = i+2+108).style=Estilo
+            
+            p=p+1
+            q=0
+            aux_2=0
+            
+           
+            
+            if (p==len(df_t_2)):
+                break
+        
+       
+       
+       
+    r=0  #Zera a variavel para a próxima data              
+               
+
+#############################################################################################################
+
+################################################  CPM   #####################################################
+
+    
+p=0
+q=0
+r=0
+aux=0
+aux_2=0
+aux_var_1=[]
+tipo_invest =[]
+
+
+
+for k in Datas_rel:
+    
+    
+    while  aux<len(df_t_2) and df_t_2.at[aux, "Data"]==k:
+            
+            if ("CPM" == df_t_2.at[aux, "Mercadoria"]):
+                r=r+1
+                aux=aux+1
+            else:
+                aux=aux+1
+             
+     
+    
+    ## Essa parte acima pega o número de linhas de DI1 com a variavel r para poder imprimir os vencimentos em ordem crescente
+
+    
+    while  p <len(df_t_2) and df_t_2.at[p, "Data"]==k:
+        
+
+        
+        if ("CPM" == df_t_2.at[p, "Mercadoria"] and Datas_rel.index(k)==0):
+            
+            aux_var_1.append(df_t_2.at[p+r-2*aux_2-1, "Compra"] - df_t_2.at[p+r-2*aux_2-1, "Venda"]) # calcula Var
+
+            
+            ws .cell(row = 7 , column = 2+q+120).value = re.sub(r'\s' , '\n ', df_t_2.at[p+r-2*aux_2-1, "Tipo_Invest"]) 
+            
+            ws .cell(row = 7 , column = 2+q+120).alignment = Alignment(horizontal="center", vertical="center", wrapText=True)
+            
+            ws .cell(row = 7 , column = 2+q+120).font= Font(size=10, b=True)
+
+            ws .cell(row = 23-Datas_rel.index(k) , column = 2+q+120).value = df_t_2.at[p+r-2*aux_2-1, "Compra"] - df_t_2.at[p+r-2*aux_2-1, "Venda"]
+            
+            #ws .cell(row = 23-Datas_rel.index(k) , column = 2+q).number_format = '$#,##0.00_-'
+            
+            ws .cell(row = 23-Datas_rel.index(k) , column = 2+q+120).style=Estilo
+            
+            tipo_invest.append(df_t_2.at[p+r-2*aux_2-1, "Tipo_Invest"])
+            
+            
+            p=p+1
+            q=q+1
+            aux_2=aux_2+1
+                
+    
+               
+        elif ("CPM" == df_t_2.at[p, "Mercadoria"] and Datas_rel.index(k)>0):
+        
+            
+            for i in tipo_invest:
+                    
+                if df_t_2.at[p+r-2*aux_2-1, "Tipo_Invest"] == i:
+                        
+           
+                    ws .cell(row = 23-Datas_rel.index(k) , column = 2+tipo_invest.index(i)+120).value = df_t_2.at[p+r-2*aux_2-1, "Compra"] - df_t_2.at[p+r-2*aux_2-1, "Venda"]
+
+                    ws .cell(row = 23-Datas_rel.index(k) , column = 2+tipo_invest.index(i)+120).style=Estilo
+                
+                
+                    if Datas_rel.index(k)==1: 
+                
+                
+                        aux_var_1[tipo_invest.index(i)] = aux_var_1[tipo_invest.index(i)] -  (df_t_2.at[p+r-2*aux_2-1, "Compra"] - df_t_2.at[p+r-2*aux_2-1, "Venda"])
+                        
+                
+            p=p+1
+            q=q+1
+            aux_2=aux_2+1
+                 
+            
+        else:
+            
+            ws.cell(row=6,column =122).value="CPM Players"
+        
+            
+            for i in range (1,q+2):
+                
+                ws.cell(row=6,column =i+120).style=Estilo2  # Estilo Titulo
+                ws.cell(row=8,column =i+120).style=Estilo3  # Estilo Datas
+                
+            
+            if Datas_rel.index(k)==14:
+            
+                for i in range(0,len(aux_var_1)):
+
+                    
+                    ws.cell(row= 24, column =i+2+120).value = aux_var_1[i]
+                    ws .cell(row = 24, column = i+2+120).style=Estilo
+               
+                    
+            
+          
+            
+            p=p+1
+            q=0
+            aux_2=0
+            
+           
+            
+            if (p==len(df_t_2)):
+                break
+        
+       
+       
+       
+    r=0  #Zera a variavel para a próxima data
+    
+    
+    
+###########################################################################
+    
+    
+
+ws.conditional_formatting.add('A1:EP200', CellIsRule(operator='lessThan', formula=['0'],font = Font(color = '00FF0000')))    
+    
+    
+
+for i in range(0,250):
+    
+    for j in range(0,250):
+        
+    
+        ws.cell(row = i+1, column = j+1).number_format = '#,##0'
+    
+    
+
+##################Essa parte abaixo  salva o relatorio na pasta desejada com a data no nome do arquivo    #################
+    
+save = day_aux
+
+c = save[0:2] + save[3:5] + save[-2:]  
+
+d = save[-4:]
+
+
+
+
+############################# Codigo abaixo reajusta largura das colunas##############################
+
+for i in range(1,150):
+        
+    a=get_column_letter(i)    
+    
+    ws.column_dimensions[a].width = 15
+    
+    
+
+############################################## Codigo abaixo salva plan no diretorio    
+
+    
+
+           
+
+
+
+# In[44]:
+
+
+ws_3 = wb_report.create_sheet("Gráfico DOL")
+ws_4 = wb_report.create_sheet("Gráfico DI")
+
+
+# In[45]:
+
+
+img = openpyxl.drawing.image.Image('DOL.png')
+img.anchor = 'A1'
+ws_3.add_image(img)
+
+
+# In[46]:
+
+
+print(tipo_invest_di)
+
+
+# In[47]:
+
+
+di_plot_var_2 = []
+
+for i in range(len(di_plot_var)):
+    di_plot_var_2.append(di_plot_var[i]-di_pos[i])
+
+
+# In[ ]:
+
+
+
+
+
+# In[48]:
+
+
+#################################### Dados para gráfico DI ##########################################
+
+df_b=pd.DataFrame({'Var': di_plot_var_2 , 'tipo': tipo_invest_di})
+
+x= np.arange(len(df_b))
+
+df_b = df_b.sort_values('Var')
+
+df_b.reset_index(drop=True, inplace=True)
+
+
+
+fig_2 =plt.figure(figsize=(20,12))
+
+for a in range(len(df_b)):
+
+    plt.text(df_b.at[a, 'Var']*1.3 if df_b.at[a, 'Var']>0 else df_b.at[a, 'Var']*1.3,a,format(df_b.at[a, 'Var'], ',d'),color= 'royalblue' if df_b.at[a, 'Var']>0 else 'crimson',fontweight='semibold', fontsize=18,rotation=0, va='center', bbox=dict(facecolor='honeydew', edgecolor='black', boxstyle='round') )
+    
+
+
+
+ax = plt.gca()
+
+#ax.xaxis.set_major_locator(MultipleLocator(50000))
+
+ax.set_facecolor((0.10, 0.20, 0.40))
+
+plt.grid(  color='w', linestyle='-', linewidth=0.7)
+
+
+for i in range(len(df_b)):
+    
+    
+    plt.barh(x[i], df_b.at[i,'Var'], color=('royalblue' if df_b.at[i,'Var']>0 else 'crimson') , edgecolor='darkblue', linewidth=1.7)
+    
+    
+
+
+plt.yticks(x,df_b['tipo'])
+
+plt.xticks(fontsize=18)
+plt.yticks(fontsize=18, fontweight='semibold')
+
+plt.xlim(right= abs(df_b.at[len(df_b)-1,'Var'])*1.5)
+plt.xlim(left=-abs(df_b.at[0,'Var'])*1.5)
+
+plt.xticks(rotation=20)
+
+ax.xaxis.set_major_formatter(mpl.ticker.StrMethodFormatter('{x:,.0f}'))
+
+plt.xlabel('Variação Contratos', fontsize=20)
+#plt.ylabel('Tipo Investidor', fontsize=20)
+plt.title('DI ( contratos D-1 - D-2)',fontsize=30)
+
+
+
+#plt.show()
+
+fig_2 = plt.gcf()
+
+
+fig_2.savefig('DI.png', dpi=50, bbox_inches = 'tight')
+
+img_2 = openpyxl.drawing.image.Image('DI.png')
+
+img_2.anchor = 'A1'
+
+ws_4.add_image(img_2)
+
+plt.close(fig_2)
+
+
+# In[49]:
+
+
+display(df_contratos)
+
+
+# In[ ]:
+
+
+
+
+
+# In[50]:
+
+
+############################################   Criação do texto  para o email  - DOL  ######################################
+
+
+p = df_plot.at[14,'Foreigners']/1000
+dp = df_contratos.at[14,'Foreigners']-df_contratos.at[13,'Foreigners']
+
+q = df_plot.at[14,'Banks']/1000
+dq= df_contratos.at[14,'Banks']-df_contratos.at[13,'Banks']
+
+r = df_plot.at[14,'Home Investors']/1000
+dr = df_contratos.at[14,'Home Investors']-df_contratos.at[13,'Home Investors']
+
+s = df_plot.at[14,'Non Financial Investors']/1000
+ds = df_contratos.at[14,'Non Financial Investors']-df_contratos.at[13,'Non Financial Investors']
+
+
+
+f = " - Foreigns " +   ("bought " if dp>0 else "sold ")  + format(abs(dp), ',d') + " cts and " + ("raised " if dp>0 else "reduced ") + ("long " if int(p)>0 else "short ") + "position to " + str(round(p,2)) + " bi US$;"  
+
+b = " - Banks " +   ("bought " if dq>0 else "sold ")  + format(abs(dq), ',d') + " cts and " + ("raised " if dq>0 else "reduced ") + ("long " if int(q)>0 else "short ") + "position to " + str(round(q,2)) + " bi US$;"  
+
+h = " - Home Investors " +   ("bought " if dr>0 else "sold ")  + format(abs(dr), ',d') + " cts and " + ("raised " if dr>0 else "reduced ") + ("long " if int(r)>0 else "short ") + "position to " + str(round(r,2)) + " bi US$;"  
+
+n = " - Non Financial Investors " +   ("bought " if ds>0 else "sold ")  + format(abs(ds), ',d') + " cts and " + ("raised " if ds>0 else "reduced ") + ("long " if int(s)>0 else "short ") + "position to " + str(round(s,2)) + " bi US$;"  
+
+
+
+###########################################  Criação do texto  para o email  - DI   ##################################
+
+
+for i in range(len(di_pos)):
+    
+    
+    if tipo_invest_di[i] == "Investidores Não Residentes":
+    
+        p_di= di_pos[i]
+        p2_di= di_plot_var[i]
+        dp_di= p2_di-p_di
+
+    if tipo_invest_di[i] == "Bancos":
+    
+        q_di= di_pos[i]
+        q2_di= di_plot_var[i]
+        dq_di= q2_di-q_di
+    
+    if tipo_invest_di[i] == "Investidor Institucional":
+    
+        r_di= di_pos[i]
+        r2_di= di_plot_var[i]
+        dr_di= r2_di-r_di
+        
+    if tipo_invest_di[i] == "Pessoa Jurídica Não Financeira":
+    
+        s_di= di_pos[i]
+        s2_di= di_plot_var[i]
+        ds_di= s2_di-s_di
+        
+######################################################  TEXTO    ################################
+        
+
+
+def text_di(p_di, dp_di, player):
+    
+    
+    p =""
+    
+    a = "aumentaram "
+    
+    r = "reduziram "
+    
+    est = " - Estrangeiros "
+    
+    banks = " - Bancos "
+    
+    inst = " - Investidores institucionais "
+    
+    inf = " - Instituições não financeiras "
+    
+    t = "tomaram "
+    
+    v = "venderam "
+    
+    c = " cts e "
+    
+    cl = " cts ;"
+    
+    i = "inverteram "
+    
+    td = "tomada "
+    
+    vd = "vendida "
+    
+    ap = "a posição "
+    
+    pa = "para "
+    
+    delta_cts = format(abs(dp_di), ',d')
+    
+    pos_cts = format(abs(p_di), ',d')
+    
+    
+    player_str =""
+    
+    
+    if player == 1:
+        
+        player_str = est
+        
+    elif player == 2:
+        
+        player_str = banks
+    
+    elif player == 3:
+    
+        player_str = inst
+        
+    else: 
+        
+        player_str = inf
+        
+    
+    
+    
+        
+    if  int(p_di)*int((dp_di+p_di))<0 :
+
+        if p_di <0:
+
+            p = player_str + v  + delta_cts + c + i + ap + td + pa + pos_cts + cl
+
+        else:
+
+            p = player_str + t  + delta_cts + c + i + ap + vd + pa + pos_cts + cl
+
+    else:
+
+        if (int(dp_di)*int(p_di)) < 0:
+
+            if dp_di <0:
+
+                p = player_str + t + delta_cts + c + r + ap + vd + pa + pos_cts + cl 
+
+            else:
+
+                p = player_str + v + delta_cts + c + r + ap + td + pa + pos_cts + cl 
+
+
+
+        else:
+
+            if dp_di <0:
+
+                p = player_str +  t  + delta_cts + c + a + ap + td + pa + pos_cts + cl 
+
+            else:
+
+                p = player_str +  v  + delta_cts + c + a + ap + vd + pa + pos_cts + cl 
+
+
+        
+    return p
+        
+        
+
+        
+
+
+
+
+
+# In[51]:
+
+
+f_di = text_di(p2_di,dp_di,1)
+
+b_di = text_di(q2_di,dq_di,2)
+
+h_di = text_di(r2_di,dr_di,3)
+
+n_di = text_di(s2_di,ds_di,4)
+
+
+# In[52]:
+
+
+print(f_di)
+
+
+# In[53]:
+
+
+ws_5 = wb_report.create_sheet("Texto")
+
+
+# In[54]:
+
+
+############################# Estilo para o texto  ###########################
+
+Estilo8 = NamedStyle(name="Estilo8")
+
+Estilo8.font= Font(size=14, b=True, color="00FFFFFF")
+
+Estilo8.alignment = Alignment(horizontal="center", vertical="center")
+
+bd = Side(style="thin", color="000000")
+
+Estilo8.border = Border(left=bd, top=bd, right=bd, bottom=bd)
+
+Estilo8.fill = PatternFill("solid", fgColor="00003366")
+
+
+Estilo9 = NamedStyle(name="Estilo9")
+
+Estilo9.font= Font(size=12, b=True, color="00003366")
+
+Estilo9.alignment = Alignment(horizontal="left", vertical="center")
+
+bd = Side(style="thin", color="000000")
+
+Estilo9.border = Border(left=bd, top=bd, right=bd, bottom=bd)
+
+Estilo9.fill = PatternFill("solid", fgColor="00FFFFFF")
+
+
+
+
+# In[55]:
+
+
+column = str(chr(64 + 3))
+
+ws_5.column_dimensions[column].width = 110
+
+
+ws_5.cell(row= 1, column =3).value = "Yesterday in BM&F"
+ws_5.cell(row= 3, column =3).value = "DOL"
+ws_5.cell(row= 4, column =3).value = f
+ws_5.cell(row= 5, column =3).value = b
+ws_5.cell(row= 6, column =3).value = h
+ws_5.cell(row= 7, column =3).value = n
+
+ws_5.cell(row= 1, column =3).style = Estilo8
+ws_5.cell(row= 3, column =3).style = Estilo8
+ws_5.cell(row= 4, column =3).style = Estilo9
+ws_5.cell(row= 5, column =3).style = Estilo9
+ws_5.cell(row= 6, column =3).style = Estilo9
+ws_5.cell(row= 7, column =3).style = Estilo9
+
+
+
+ws_5.cell(row= 9, column =3).value = "DI"
+ws_5.cell(row= 10, column =3).value = f_di
+ws_5.cell(row= 11, column =3).value = b_di
+ws_5.cell(row= 12, column =3).value = h_di
+ws_5.cell(row= 13, column =3).value = n_di
+
+
+ws_5.cell(row= 9, column =3).style = Estilo8
+ws_5.cell(row= 10, column =3).style = Estilo9
+ws_5.cell(row= 11, column =3).style = Estilo9
+ws_5.cell(row= 12, column =3).style = Estilo9
+ws_5.cell(row= 13, column =3).style = Estilo9
+
+
+# In[56]:
+
+
+##################### Cria Dataframe para alocar texto do email ######################################
+
+df_texto = pd.DataFrame({'Yesterday in BM&F': [ws_5.cell(row= 3, column =3).value,ws_5.cell(row= 4, column =3).value, ws_5.cell(row= 5, column =3).value, ws_5.cell(row= 6, column =3).value,ws_5.cell(row= 7, column =3).value, 'DI',ws_5.cell(row= 10, column =3).value, ws_5.cell(row= 11, column =3).value, ws_5.cell(row= 12, column =3).value, ws_5.cell(row= 13, column =3).value]})
+
+
+# In[57]:
+
+
+pd.set_option("display.max_colwidth", 10000)  ############ mostrar max de caracteres do dataframe #############
+
+
+# In[58]:
+
+
+#display(df_texto)
+
+
+# In[59]:
+
+
+#df_texto = df_texto.style.set_properties(**{'border': '1.5px black','color': 'white','background-color': 'blue'})
+
+
+# In[60]:
+
+
+texto= build_table(df_texto,'blue_dark',text_align='center',font_size='15px',width=['1000px'])
+
+
+# In[61]:
+
+
+#, even_color='black',width_dict=['1000px'])
+
+
+# In[62]:
+
+
+######################################### Manda email para os clientes ####################################################
+
+xl = win32.Dispatch('Excel.Application')
+wb = xl.Workbooks.Open("U:\Corretora\Solano\Templates\e-mails.xlsm", None, True) # 1 is for readonly
+
+
+sheets = wb.Sheets
+
+listas = sheets[1]
+
+#print(listas.Name)
+
+xlUp = -4162
+
+lastrow = listas.Cells(listas.Rows.Count, "A").End(xlUp).Row
+
+#print(lastrow)
+
+
+# In[63]:
+
+
+#################################   Faz igual ao vlookup de quem deve receber o email ##############################
+
+emails = []
+
+for i in range(2, lastrow):
+    
+    if listas.Cells(i,7).Value != None:
+    
+        emails.append(listas.Cells(i,2).Value)
+        
+   
+
+
+# In[64]:
+
+
+bcc=""
+
+for i in range(len(emails)):
+    
+    if i == len(emails)-1:
+        
+        bcc = bcc +  emails[i]
+        
+    else:
+    
+        bcc = bcc + emails[i]+ ";"
+
+
+# In[65]:
+
+
+outlook = win32com.client.Dispatch('outlook.application')
+
+
+# In[66]:
+
+
+mail = outlook.CreateItem(0)
+
+
+# In[67]:
+
+
+wb_report.save(r"U:\\Corretora\\Relatórios\\RelatorioBMF\\" + d + r"\\" + r"Relatorio BMF_" + c + r".xls")
+
+
+# In[68]:
+
+
+#mail.To = ''
+mail.Subject = 'Relatorio BMF_' + c
+
+#mail.HTMLBody = '<h3>This is HTML Body</h3>'
+#mail.Body = texto
+
+mail.Attachments.Add(r"U:\\Corretora\\Relatórios\\RelatorioBMF\\" + d + r"\\" + r"Relatorio BMF_" + c + r".xls")
+mail.Attachments.Add(r"C:\Users\SILVEIPE\Python\DI.png")
+mail.Attachments.Add(r"C:\Users\SILVEIPE\Python\DOL.png")
+mail.Attachments.Add(r"C:\Users\SILVEIPE\Python\signature.png")
+
+
+mail.HTMLBody = "<html><body> <br><br></body></html>" + texto +"<html><body> <br><br><br> <img src='cid:DI.png'> <br> <img src='cid:DOL.png'> <br> <img src='cid:signature.png'>  </body></html>"
+
+
+#mail.CC = 'somebody@company.com'
+
+mail.BCC = bcc
+#mail.BCC = 'pedro.silveira@btgpactual.com'
+
+
+# In[69]:
+
+
+#mail.Display(True)
+mail.Send()
+
