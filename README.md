@@ -9,4 +9,4 @@
 - Contact details:
 
   - Email: paasxx@gmail.com
-  - Celphone 55 31 97599-6025
+  - Cellphone 55 31 97599-6025
