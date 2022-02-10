@@ -4720,35 +4720,35 @@ def text_di(p_di, dp_di, player):
     
     p =""
     
-    a = "aumentaram "
+    a = "raised "
     
-    r = "reduziram "
+    r = "reduced "
     
-    est = " - Estrangeiros "
+    est = " - Foreigners "
     
-    banks = " - Bancos "
+    banks = " - Banks "
     
-    inst = " - Investidores institucionais "
+    inst = " - Home Investors "
     
-    inf = " - Instituições não financeiras "
+    inf = " - Non Financial Institutions "
     
-    t = "tomaram "
+    t = "bought "
     
-    v = "venderam "
+    v = "sold "
     
-    c = " cts e "
+    c = " cts and "
     
     cl = " cts ;"
     
-    i = "inverteram "
+    i = "changed side in "
     
-    td = "tomada "
+    td = "long "
     
-    vd = "vendida "
+    vd = "short "
     
-    ap = "a posição "
+    ap = "position "
     
-    pa = "para "
+    pa = "to "
     
     delta_cts = format(abs(dp_di), ',d')
     
